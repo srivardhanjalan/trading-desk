@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "tradingview": {
+      "command": "node",
+      "args": ["./mcp-servers/tradingview-mcp/src/server.js"]
+    },
+    "tradingview-analysis": {
+      "command": "uvx",
+      "args": ["--from", "tradingview-mcp-server", "tradingview-mcp"]
+    },
+    "financial-modeling-prep": {
+      "url": "http://localhost:8080/mcp"
+    },
+    "alpaca": {
+      "command": "uvx",
+      "args": ["alpaca-mcp-server"],
+      "env": {
+        "ALPACA_API_KEY": "YOUR_ALPACA_API_KEY",
+        "ALPACA_SECRET_KEY": "YOUR_ALPACA_SECRET_KEY",
+        "ALPACA_BASE_URL": "https://paper-api.alpaca.markets/v2",
+        "ALPACA_PAPER": "true"
+      }
+    }
+  }
+}
