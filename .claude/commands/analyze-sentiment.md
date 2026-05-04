@@ -53,11 +53,13 @@ Calculate these 10 metrics from the chain data:
 | **IV Skew** | Avg put IV (ATM +/-2 strikes) - avg call IV (ATM +/-2 strikes). Positive = fear premium. >5% = significant |
 | **Max Pain** | Strike where sum of all (call OI * max(0, strike-S) + put OI * max(0, S-strike)) is minimized across all strikes S. Price magnet near expiry. |
 | **IV vs HV** | Avg chain IV / HV from getStandardDeviation. >1.5 = expects big move. <0.8 = complacent. ~1.0 = normal |
-| **Expected Move** | ATM call premium + ATM put premium (nearest expiry straddle). E.g., "$12.50 = +/-7.8%" |
+| **Expected Move** | ATM call premium + ATM put premium (nearest expiry straddle). Use mid-price (average of bid and ask) for ATM call and put. Expected move = call_mid + put_mid. Also report the IV-based expected move: Price × ATM_IV × sqrt(DTE/365). Report both. E.g., "$12.50 = +/-7.8%" |
 | **Unusual Activity** | Contracts where today's volume > 5x open interest. Report: strike, expiry, direction, vol/OI ratio |
 | **Most Active Strikes** | Top 3 call and top 3 put strikes by volume. Clustering = institutional price targets |
 | **Premium Trend** | From `get_option_bars`: 7-day price change % for top 3 contracts. Rising/falling conviction |
 | **Net Delta Exposure** | sum(call OI * call delta) - sum(put OI * abs(put delta)). Positive = market net long. Magnitude = conviction |
+
+**OI availability check (REQUIRED):** Before computing metrics 2 (P/C OI Ratio), 4 (Max Pain), 6 (Unusual Activity — 5x OI threshold), and 10 (Net Delta Exposure), verify that the `get_option_chain` response contains open interest data. If OI is absent, report these 4 metrics as 'N/A — OI not available from data source' rather than estimating or silently redefining them. Only compute these metrics when OI data is confirmed present in the response.
 
 ---
 
@@ -70,6 +72,9 @@ Calculate these 10 metrics from the chain data:
 - `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=5 — headlines with URLs (URLs used in Step 2)
 - `WebSearch` query: "$ARGUMENTS stock twitter sentiment {current_year}" — Twitter/X sentiment (fastest-moving platform)
 - `WebSearch` query: "$ARGUMENTS site:stocktwits.com" — StockTwits sentiment (has built-in bullish/bearish tagging)
+
+**Data provenance note:** WebSearch for Twitter/StockTwits returns articles ABOUT platform sentiment, not actual platform data. Always label the source accurately: 'Twitter/X (via news reports)' or 'StockTwits (via editorial summary)' — never imply direct platform access. If actual bull/bear ratios from the platform are not obtainable, note this limitation. If the `market_sentiment` MCP tool returns platform-specific data, that IS first-party data and should be labeled accordingly.
+
 - `mcp__financial-modeling-prep__searchInsiderTrades` with symbol=$ARGUMENTS, limit=10 — insider buys/sells with $ amounts. Derive net buy/sell ratio. Weight by: C-suite buys >$1M = strong signal.
 - **10b5-1 verification (REQUIRED):** FMP does not return 10b5-1 plan status. After getting insider trades, run `WebSearch` query: `{SYMBOL} "{INSIDER_NAME}" 10b5-1 plan {year} SEC Form 4` for each insider with sales >$1M. The SEC Form 4 footnotes explicitly state whether sales were under a pre-arranged Rule 10b5-1 plan and the plan adoption date. Report as **confirmed 10b5-1** (with adoption date) or **discretionary sale** — never say "likely."
 - `mcp__financial-modeling-prep__getSenateTrades` with symbol=$ARGUMENTS — always called. Empty = "No Senate activity"
@@ -86,6 +91,14 @@ Calculate these 10 metrics from the chain data:
 - For each article, analyze: key facts, sentiment (positive/negative/neutral), impact magnitude (high/medium/low), time horizon
 - Apply source credibility tiers: Tier 1 (Reuters, Bloomberg, WSJ) = 1.0x weight, Tier 2 (CNBC, Yahoo Finance) = 0.8x, Tier 3 (blogs, unknown) = 0.5x
 
+**Compliance checklist (ALL required):**
+1. [ ] WebFetch called on at least 2 article URLs
+2. [ ] Per-article breakdown: key facts, sentiment, impact magnitude, time horizon
+3. [ ] Source credibility tier assigned to each article
+4. [ ] If WebFetch returns 403/paywall, note 'PAYWALLED — sentiment from headline only (lower confidence)'
+5. [ ] At least 1 Tier 1 source (Reuters, Bloomberg, WSJ) sought via WebSearch
+If fewer than 3 of 5 items are completed, add 'NEWS NLP: INCOMPLETE' warning to output.
+
 **Why full-text matters:** Headlines are often clickbait. A "Stock drops 5%" headline might be planned dilution (bad) or profit-taking after +30% run (neutral). Only the article body reveals the actual signal.
 
 ---
@@ -95,11 +108,10 @@ Calculate these 10 metrics from the chain data:
 **1 call:**
 - Call `mcp__financial-modeling-prep__getPositionsSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter}
 
-**13F filing lag (45 days):** Adjust quarter:
-- Jan-Mar → use Q3 of previous year
-- Apr-Jun → use Q4 of previous year
-- Jul-Sep → use Q1 of current year
-- Oct-Dec → use Q2 of current year
+**13F filing lag:** Use the most recent quarter Q where (Q_end_date + 45 days) < today. This guarantees all filings for that quarter are past deadline.
+Example: On May 4, 2026: Q1 ends Mar 31, deadline May 15 — NOT past → skip. Q4 ends Dec 31, deadline Feb 14 — past → USE Q4 2025.
+On May 20, 2026: Q1 deadline May 15 — past → USE Q1 2026.
+If the calculated quarter returns significantly fewer holders than the prior quarter (>50% drop), warn: 'Possible incomplete filing data — verify against prior quarter.'
 
 Extract: number of institutional holders, changes in share count, total investment value.
 Empty = "No institutional data this quarter" (normal for micro-caps).

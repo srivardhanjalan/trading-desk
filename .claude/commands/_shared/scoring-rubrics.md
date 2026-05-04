@@ -73,6 +73,7 @@ All scores are **directional for LONG positions** (how good is this stock to BUY
 **PEG routing:**
 - P/E > 0 AND revenue growth > 0: PEG = P/E / revenue growth rate (%)
 - P/E is N/A (negative earnings) but sales growth > 0: PSG = Price/Sales / sales growth rate. Same thresholds as PEG
+  - PSG is a ROUTING ALTERNATIVE when PEG is not calculable. When PEG IS calculable (P/E > 0 and growth > 0), PEG is the sole primary metric. PSG does NOT offset or modify a PEG-based score.
 - Both earnings AND sales growth negative: Route back to Track A (broken growth story)
 - P/E N/A AND revenue growth negative: Score = 1-2 automatically
 
@@ -83,6 +84,8 @@ All scores are **directional for LONG positions** (how good is this stock to BUY
 | 5-6 | PEG 1.2-2.0 + at analyst consensus + growth decelerating |
 | 3-4 | PEG 2.0-3.0 + above analyst consensus + growth slowing materially |
 | 1-2 | PEG >3.0 OR broken growth story (negative earnings + negative sales growth) |
+
+**Revenue vs EPS growth note:** This rubric uses revenue growth for PEG to avoid earnings manipulation and one-time items. However, for companies with rapid margin expansion (net margin doubling or more in 2 years), the revenue-based PEG will systematically undervalue the stock. In these cases, ALSO compute EPS-based PEG as a secondary check. If EPS PEG < 1.0 while revenue PEG > 2.0, note the divergence and add +1 to the Valuation score (max adjustment: +1). Report both PEG values.
 
 **Track B earnings execution gate:** If stock misses earnings >=5/8 quarters, cap Track B Valuation at 5.
 
