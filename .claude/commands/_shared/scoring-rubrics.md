@@ -134,7 +134,9 @@ Weighted sentiment = sum(platform_score x weight). Bullish > +0.3, bearish < -0.
 **Insider magnitude weighting:**
 - Buys >$1M from C-suite: boost +1
 - Sales >$10M from multiple insiders: reduce -1
-- Routine 10b5-1 plan sales (regular cadence): neutral
+- **10b5-1 plan sales (CONFIRMED via SEC Form 4 footnotes):** Reduce severity by 1 tier. A confirmed 10b5-1 sale of $15M is less bearish than a discretionary $15M sale because plans are adopted months in advance.
+- **Discretionary sales (no 10b5-1 plan):** Full severity. C-suite selling without a pre-arranged plan is a stronger signal.
+- **Never assume 10b5-1 status.** FMP does not return this field. Always verify via WebSearch of the SEC Form 4 filing. Report as "confirmed 10b5-1 (adopted DATE)" or "discretionary" or "not verified."
 
 **Conflict priority:**
 1. Insider magnitude sets floor/ceiling: $15M+ buying → floor 6. $10M+ selling → ceiling 4

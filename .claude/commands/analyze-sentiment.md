@@ -70,7 +70,8 @@ Calculate these 10 metrics from the chain data:
 - `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=5 — headlines with URLs (URLs used in Step 2)
 - `WebSearch` query: "$ARGUMENTS stock twitter sentiment {current_year}" — Twitter/X sentiment (fastest-moving platform)
 - `WebSearch` query: "$ARGUMENTS site:stocktwits.com" — StockTwits sentiment (has built-in bullish/bearish tagging)
-- `mcp__financial-modeling-prep__searchInsiderTrades` with symbol=$ARGUMENTS, limit=10 — insider buys/sells with $ amounts. Derive net buy/sell ratio. Weight by: C-suite buys >$1M = strong signal. Routine 10b5-1 sales = neutral.
+- `mcp__financial-modeling-prep__searchInsiderTrades` with symbol=$ARGUMENTS, limit=10 — insider buys/sells with $ amounts. Derive net buy/sell ratio. Weight by: C-suite buys >$1M = strong signal.
+- **10b5-1 verification (REQUIRED):** FMP does not return 10b5-1 plan status. After getting insider trades, run `WebSearch` query: `{SYMBOL} "{INSIDER_NAME}" 10b5-1 plan {year} SEC Form 4` for each insider with sales >$1M. The SEC Form 4 footnotes explicitly state whether sales were under a pre-arranged Rule 10b5-1 plan and the plan adoption date. Report as **confirmed 10b5-1** (with adoption date) or **discretionary sale** — never say "likely."
 - `mcp__financial-modeling-prep__getSenateTrades` with symbol=$ARGUMENTS — always called. Empty = "No Senate activity"
 - `mcp__financial-modeling-prep__getHouseTrades` with symbol=$ARGUMENTS — always called. Empty = "No House activity"
 - `mcp__financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 30 days} — returns ALL companies' earnings (no symbol filter). Must search response for $ARGUMENTS. Alternatively, use `getEarningsReports` from Phase 9 for per-symbol dates.
@@ -183,9 +184,14 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 - Consensus: {BUY/SELL/HOLD}
 
 ## Insider Activity
-- Net insider buying/selling: ${X}
-- Notable transactions: {C-suite buys/sells with amounts}
-- 10b5-1 plan sales: {identified/not applicable}
+| Date | Name | Role | Action | Shares | Price | Value |
+|------|------|------|--------|-------:|------:|------:|
+| {rows from searchInsiderTrades} |
+| **Net** | | | **{NET_LABEL}** | | | **${NET_VALUE}** |
+
+- 10b5-1 status: {CONFIRMED 10b5-1 (adopted DATE) / DISCRETIONARY / NOT VERIFIED}
+  - Source: SEC Form 4 footnotes via WebSearch
+  - Never say "likely" — always verify or say "not verified"
 
 ## Congressional Activity
 - Senate: {trades or "No activity"}

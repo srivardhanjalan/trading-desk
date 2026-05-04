@@ -15,40 +15,168 @@ VIX labels: <15 = "calm", 15-20 = "normal", 20-25 = "elevated", 25-30 = "fear", 
 
 ## Compact Card (Default for /analyze)
 
+Use markdown tables throughout for clean, consistent rendering. All sections use tables.
+
+### Header
+
 ```
-=== {SYMBOL} Analysis === {DATE} === Score: {COMPOSITE}/100 ===
-{MARKET_HOURS_HEADER}
-{SIGNAL} ({CONFIDENCE}) | Data: {COMPLETENESS}% complete | {ASSET_TYPE_LABEL}
+# {SYMBOL} — {COMPANY_NAME} | {DATE}
 
-Tech: {T}/10 | Fund: {F}/10 | Val: {V}/10 ({TRACK_LABEL}) | Sent: {S}/10
-Smart$: {SM}/10 | Macro: {M}/10 | BT: {BT}/10 | Risk: {R}/10
-
-Valuation: {TRACK_DETAIL}
-         DCF range: ${STD} (standard) / ${LEV} (levered) / ${CUSTOM} (custom)
-         Analyst consensus: ${TARGET} ({UPSIDE}%) from {COUNT} analysts (s=${STDDEV})
-         Earnings: {BEAT_MISS_SUMMARY}
-
-Sentiment: Reddit {REDDIT_SIGNAL} ({PCT}%) | Twitter {TW_SIGNAL} | StockTwits {ST_PCT}% bulls
-          News NLP: {POS} positive, {NEU} neutral, {NEG} negative ({KEY_TOPIC})
-          Analyst: {UPGRADES} upgrades, {DOWNGRADES} downgrades last 30d
-
-Options: P/C Vol {PC_RATIO} ({LABEL}) | IV/HV {IVHV} | Expected Move +/-${EM} (+/-{EM_PCT}%)
-        Max Pain: ${MP} | Unusual: {UNUSUAL_ACTIVITY}
-        Net Delta: {DELTA} ({DELTA_LABEL})
-
-Best Strategy: {STRATEGY_NAME} ({RETURN}% return, {SHARPE} Sharpe, {TRADES} trades)
-  {CROSS_VALIDATION_NOTE}
-Entry: ${PRICE} (current) | Stop: ${STOP} ({STOP_PCT}%) | TP: ${TP} ({TP_PCT}%)
-  Bid/Ask spread: ${SPREAD} ({SPREAD_LABEL})
-Position: {SHARES} shares / ${AMOUNT} ({PCT_PORTFOLIO}% of ${EQUITY} account)
-
-{OVERRIDE_WARNINGS}
-Top Risks: {RISK_LIST}
-Top Catalysts: {CATALYST_LIST}
-Corporate: {CORPORATE_ACTIONS}
-Delta: {DELTA_FROM_PREV}
-===================================================
+| | |
+|---|---|
+| **Price** | ${PRICE} ({CHANGE_PCT}%) |
+| **Sector** | {SECTOR} / {INDUSTRY} |
+| **Score** | **{COMPOSITE}/100 — {SIGNAL}** |
+| **Confidence** | {CONF} |
+| **Data** | {COMPLETENESS}% complete |
+| **Market** | {MARKET_HOURS_HEADER} |
 ```
+
+### Scores
+
+```
+| Dimension | Score | Bar | Weight | Key Driver |
+|-----------|------:|-----|-------:|------------|
+| Technical | {T}/10 | {T_BAR} | 22% | {T_DRIVER} |
+| Fundamental | {F}/10 | {F_BAR} | 15% | {F_DRIVER} |
+| Valuation | {V}/10 | {V_BAR} | 15% | {V_DRIVER} |
+| Smart Money | {SM}/10 | {SM_BAR} | 13% | {SM_DRIVER} |
+| Risk | {R}/10 | {R_BAR} | 12% | {R_DRIVER} |
+| Backtest | {BT}/10 | {BT_BAR} | 10% | {BT_DRIVER} |
+| Sentiment | {S}/10 | {S_BAR} | 7% | {S_DRIVER} |
+| Macro | {M}/10 | {M_BAR} | 6% | {M_DRIVER} |
+| **Composite** | **{RAW}/100** | | | Overrides: {OVERRIDES_APPLIED} → **{FINAL}/100** |
+```
+
+Bar format: `████████░░` for 8/10 — use `█` filled, `░` empty, 10 chars.
+Key Driver: one-line reason for the score (e.g. "4/5 TF bullish, RSI 79 overbought").
+
+### Valuation
+
+```
+| Metric | Value | Note |
+|--------|------:|------|
+| **Valuation Track** | {TRACK_LABEL} | {TRACK_REASON} |
+| PEG (or P/E for Track A) | {PEG_VALUE} | {PEG_LABEL} |
+| PSG (if Track B) | {PSG_VALUE} | {PSG_LABEL} |
+| DCF — Standard | ${STD} | {STD_NOTE} |
+| DCF — Levered | ${LEV} | {LEV_NOTE} |
+| DCF — Custom | ${CUSTOM} | {CUSTOM_NOTE} |
+| Analyst Target | ${TARGET} ({UPSIDE}%) | {COUNT} analysts, {RATING_BREAKDOWN} |
+| Next Earnings | {EARNINGS_DATE} | EPS est {EPS_EST}, Rev est {REV_EST} |
+```
+
+For Track B growth stocks, add a note row: "DCF unreliable for high-growth — PEG is primary metric"
+
+### Sentiment
+
+```
+| Source | Signal | Detail |
+|--------|--------|--------|
+| Reddit | {REDDIT_SIGNAL} | {REDDIT_DETAIL} |
+| StockTwits | {ST_SIGNAL} | {ST_DETAIL} |
+| Twitter/X | {TW_SIGNAL} | {TW_DETAIL} |
+| News NLP | {NEWS_SIGNAL} | {NEWS_DETAIL} |
+| Analyst Actions | {ANALYST_SIGNAL} | {ANALYST_DETAIL} |
+```
+
+### Options Flow
+
+```
+| Metric | Value | Interpretation |
+|--------|------:|----------------|
+| P/C Volume Ratio | {PC_RATIO} | {PC_LABEL} |
+| IV/HV Ratio | {IVHV} | {IVHV_LABEL} |
+| IV Skew | Put {PUT_IV}% / Call {CALL_IV}% | {SKEW_LABEL} |
+| Expected Move | +/-${EM} (+/-{EM_PCT}%) | {EM_CONTEXT} |
+| Max Pain | ${MP} | {MP_VS_PRICE} |
+| Unusual Activity | {UNUSUAL_STRIKES} | {UNUSUAL_DETAIL} |
+```
+
+### Insider & Institutional
+
+Insider table (60-day window):
+
+```
+| Date | Name | Role | Action | Shares | Price | Value |
+|------|------|------|--------|-------:|------:|------:|
+| {rows} |
+| **Net** | | | **{NET_LABEL}** | | | **${NET_VALUE}** |
+```
+
+Institutional (latest COMPLETE 13F quarter — never use partial):
+
+```
+| Metric | Current | Prior Q | Change |
+|--------|--------:|--------:|-------:|
+| Holders | {INST_HOLDERS} | {PREV_HOLDERS} | {CHANGE} |
+| 13F Shares | {SHARES} | {PREV_SHARES} | {SHARE_CHANGE} |
+| Ownership % | {OWN_PCT}% | {PREV_OWN}% | {OWN_CHANGE} |
+| New Positions | {NEW} | | |
+| Increased | {INC} | | |
+| Closed | {CLOSED} | | |
+| Reduced | {RED} | | |
+```
+
+### Backtest
+
+```
+| Strategy | Return | Win Rate | Sharpe | Trades |
+|----------|-------:|---------:|-------:|-------:|
+| **{BEST}** | **{RETURN}%** | **{WR}%** | **{SHARPE}** | **{TRADES}** |
+| {2nd} | ... | ... | ... | ... |
+| Walk-Forward | {WF_STATUS} | | | |
+| Desktop Cross-Val | {DESKTOP_STATUS} | | | |
+```
+
+### Trade Setup
+
+```
+| | Price | % from Current |
+|---|------:|---------------:|
+| Entry | ${PRICE} | — |
+| Stop Loss | ${STOP} | {STOP_PCT}% |
+| Take Profit | ${TP} | +{TP_PCT}% |
+| **R:R Ratio** | **{RR}** | |
+| Spread | ${SPREAD} | {SPREAD_LABEL} |
+| Position Size | {SHARES} sh / ${AMOUNT} | {PCT_PORTFOLIO}% of ${EQUITY} |
+```
+
+### Warnings
+
+```
+| Severity | Warning | Impact |
+|----------|---------|--------|
+| {ICON} | {WARNING_TEXT} | {SCORE_IMPACT} |
+```
+
+Severity levels: `!!!` CRITICAL (blocks trade), `!!` WARNING (score penalty), `!` CAUTION (informational).
+
+### Risks & Catalysts
+
+```
+| Risks | Catalysts |
+|-------|-----------|
+| {RISK_1} | {CATALYST_1} |
+| {RISK_2} | {CATALYST_2} |
+| ... | ... |
+```
+
+### Footer
+
+```
+| Corporate | {CORPORATE_ACTIONS} |
+|---|---|
+| Delta | {DELTA_FROM_PREV — score change from last analysis, or "First analysis"} |
+| Sources | FMP, TV-Analysis, Alpaca, WebSearch |
+```
+
+**Rendering notes:**
+- Bar chars: use `█` for filled, `░` for empty (10 chars total per dimension)
+- {TRACK_LABEL}: "Track A: DCF" or "Track B: PEG" (or "Track B: PSG" if negative earnings)
+- 13F quarter: ALWAYS use most recent COMPLETE quarter (45-day filing lag). Partial quarters mislead.
+- Key Driver column: keeps the score table self-contained — reader doesn't need to scroll to understand each score
+- All numbers right-aligned in tables for readability
 
 ---
 

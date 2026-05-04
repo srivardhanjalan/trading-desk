@@ -132,19 +132,21 @@ ok "FMP MCP server installed"
 echo ""
 
 # ── Step 5: Collect API keys ───────────────────────────────
-if [[ "$FROM_ENV" == true ]] && [[ -f "$ENV_FILE" ]]; then
-  info "Reading API keys from .env..."
+# Defaults
+FMP_KEY=""
+ALPACA_KEY=""
+ALPACA_SECRET=""
+ALPACA_URL="https://paper-api.alpaca.markets/v2"
+FMP_PORT_VAL="8080"
+
+if [[ -f "$ENV_FILE" ]]; then
   # shellcheck disable=SC1090
-  source "$ENV_FILE"
+  source "$ENV_FILE" 2>/dev/null || true
   FMP_KEY="${FMP_ACCESS_TOKEN:-}"
   ALPACA_KEY="${ALPACA_API_KEY:-}"
   ALPACA_SECRET="${ALPACA_SECRET_KEY:-}"
   ALPACA_URL="${ALPACA_BASE_URL:-https://paper-api.alpaca.markets/v2}"
   FMP_PORT_VAL="${FMP_PORT:-8080}"
-elif [[ -f "$ENV_FILE" ]]; then
-  # Source existing .env for defaults
-  # shellcheck disable=SC1090
-  source "$ENV_FILE" 2>/dev/null || true
 fi
 
 if [[ "$FROM_ENV" != true ]]; then
