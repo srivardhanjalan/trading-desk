@@ -65,6 +65,16 @@ Using data from all phase reports:
 
 Apply `_shared/scoring-rubrics.md` thresholds to data from all phase reports. For each dimension, assign a score 1-10 with brief justification.
 
+**Scoring checklist — ensure all inputs are used:**
+- **Technical:** RSI (exact value), Stochastic (%K/%D exact values), MACD, ADX, timeframe alignment count. RSI overbought prevents 7-8 base.
+- **Fundamental:** Piotroski, Z-Score, revenue growth, earnings beat/miss history.
+- **Valuation:** Revenue PEG (primary), EPS PEG (secondary check for margin expansion), PSG (routing alt only), DCF range, analyst consensus vs price.
+- **Sentiment:** All 5 platform scores × weights. Include News NLP compliance status.
+- **Smart Money:** Insider activity + 10b5-1 status + congressional trades + institutional ownership + options flow. Congressional data from `{SYMBOL}_sentiment.md` must be included in justification.
+- **Macro:** VIX + rates + sector ETF (if available).
+- **Backtest:** Apply trade count gate FIRST, then B&H comparison, then walk-forward status.
+- **Risk:** Beta, RSI, IV, earnings proximity, extension from SMA50, geographic concentration.
+
 **Asset type check:** If crypto, use crypto weights (Technical 35%, Smart Money 25%, Risk 20%, Backtest 12%, Sentiment 8%). Skip Fundamental, Valuation, Macro.
 
 ### Step 2 — Calculate weighted composite

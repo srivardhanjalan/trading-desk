@@ -131,9 +131,14 @@ Empty = "No institutional data this quarter" (normal for micro-caps).
 
 ### Step 1 — TV-Analysis backtesting (3 calls, sequential)
 
-- Call `mcp__tradingview-analysis__compare_strategies` with symbol=$ARGUMENTS, period="1y" — ranked leaderboard: RSI, Bollinger, MACD, EMA Cross, Supertrend, Donchian
-- Call `mcp__tradingview-analysis__backtest_strategy` with symbol=$ARGUMENTS, strategy={best from compare_strategies}, include_trade_log=false — win rate, Sharpe, max drawdown, profit factor
-- Call `mcp__tradingview-analysis__walk_forward_backtest_strategy` with symbol=$ARGUMENTS, strategy={best strategy}, period="2y" — overfit validation on unseen data
+- Call `mcp__tradingview-analysis__compare_strategies` with symbol=$ARGUMENTS, period="1y" — ranked leaderboard: RSI, Bollinger, MACD, EMA Cross, Supertrend, Donchian. **Extract Buy-and-Hold return from the response** (usually included as benchmark). If not in response, compute from Phase 1 price change data (1Y return).
+- Call `mcp__tradingview-analysis__backtest_strategy` with symbol=$ARGUMENTS, strategy={best from compare_strategies}, include_trade_log=false — win rate, Sharpe, max drawdown, profit factor, **total trade count**
+- Call `mcp__tradingview-analysis__walk_forward_backtest_strategy` with symbol=$ARGUMENTS, strategy={best strategy}, period="2y" — overfit validation on unseen data. **Report robustness score and out-of-sample trade count.**
+
+**Scoring gates (apply in order during Phase 16):**
+1. **Trade count gate:** <5 trades → cap score at 2. 5-9 → cap 4. 10-14 → cap 6. ≥15 → no cap.
+2. **B&H benchmark:** If best strategy return < buy-and-hold return → subtract 2 from score (min 1).
+3. **Walk-forward:** If robustness = 0 or no out-of-sample trades → flag "OVERFITTED" warning.
 
 ### Step 2 — Desktop cross-validation (2 calls, conditional on Desktop running)
 

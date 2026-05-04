@@ -118,6 +118,17 @@ Institutional (latest COMPLETE 13F quarter — never use partial):
 | Reduced | {RED} | | |
 ```
 
+### Congressional Activity
+
+```
+| Chamber | Member | Action | Amount | Date |
+|---------|--------|--------|-------:|------|
+| Senate | {rows from getSenateTrades} |
+| House | {rows from getHouseTrades} |
+```
+
+If both empty: `No congressional trading activity detected.`
+
 ### Backtest
 
 ```
@@ -125,9 +136,15 @@ Institutional (latest COMPLETE 13F quarter — never use partial):
 |----------|-------:|---------:|-------:|-------:|
 | **{BEST}** | **{RETURN}%** | **{WR}%** | **{SHARPE}** | **{TRADES}** |
 | {2nd} | ... | ... | ... | ... |
+| Buy & Hold | {BH_RETURN}% | | | — |
 | Walk-Forward | {WF_STATUS} | | | |
 | Desktop Cross-Val | {DESKTOP_STATUS} | | | |
 ```
+
+**Backtest scoring gates (from rubric, apply in order):**
+1. Trade count gate: <5 trades → cap 2, 5-9 → cap 4, 10-14 → cap 6, 15+ → no cap
+2. Buy-and-hold benchmark: if best strategy < B&H return → subtract 2 (min 1)
+3. Walk-forward: if robustness = 0 or OVERFITTED → flag warning
 
 ### Trade Setup
 
