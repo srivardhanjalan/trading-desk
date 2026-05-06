@@ -1,4 +1,4 @@
-date,symbol,composite,signal,technical,fundamental,valuation,sentiment,smart_money,macro,backtest,risk,data_completeness
+date,symbol,composite,signal,technical,fundamental,valuation,sentiment,smart_money,macro,backtest,risk,data_completeness,price_at_scoring,quality_score,timing_score
 2026-05-04,AMD,39,SELL,5,8,3,7,5,7,2,3,87
 2026-05-04,INFQ,37,SELL,4,3,3,6,5,7,2,2,75
 2026-05-04,ALMU,38,SELL,5,5,2,6,4,7,4,3,73
@@ -17,3 +17,5 @@ date,symbol,composite,signal,technical,fundamental,valuation,sentiment,smart_mon
 2026-05-04,SATS,37,SELL,5,3,2,6,4,7,1,3,78
 2026-05-04,GEV,53,HOLD,6,7,3,7,7,7,2,4,80
 2026-05-05,PLTR,50,HOLD,4,9,4,5,6,7,1,4,88
+2026-05-06,AMD,60,BUY,8,8,5,7,4,6,4,5,90,355.26,64,62
+2026-05-06,PLTR,45,HOLD,3,9,4,5,5,6,7,5,90,135.91,62,48
