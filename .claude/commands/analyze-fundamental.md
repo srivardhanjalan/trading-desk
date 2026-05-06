@@ -11,7 +11,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 
 ## Phase 2: Macro & Sector Context
 
-**6 calls, all cacheable per session (parallel):**
+**9 calls, all cacheable per session (parallel):**
 - Call `mcp__financial-modeling-prep__getTreasuryRates` — extract 2Y, 5Y, 10Y, 30Y yields. Check yield curve shape (2Y > 10Y = inverted = recession signal).
 - Call `mcp__financial-modeling-prep__getStockPriceChange` with the sector ETF symbol based on the stock's sector:
   - Technology → XLK, Semiconductors → SMH, Financials → XLF, Energy → XLE, Healthcare → XLV, Consumer Discretionary → XLY, Industrials → XLI, Real Estate → XLRE, Utilities → XLU, Materials → XLB, Comm Services → XLC, Consumer Staples → XLP
@@ -23,6 +23,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - Call `mcp__financial-modeling-prep__getHistoricalSectorPerformance` — 3-month sector trend. Confirms or refutes sector ETF momentum signal.
 - Call `mcp__financial-modeling-prep__getIndustryPESnapshot` with industry={stock's industry}, date={today YYYY-MM-DD} — current industry P/E. **Contextualizes valuation:** A P/E of 135 in a sector averaging 80 is very different from P/E 135 in a sector averaging 20.
 - Call `mcp__financial-modeling-prep__getEconomicCalendar` with from={today}, to={today + 14 days} — upcoming CPI, FOMC, jobs data. **If major macro event coincides with earnings week, volatility amplifies.** Flag: "MACRO EVENT: {event} on {date} during earnings week."
+- Call `mcp__financial-modeling-prep__getESGRatings` with symbol=$ARGUMENTS — ESG score (environmental, social, governance). Flags regulatory/reputational risk for Risk scoring. Companies with poor ESG increasingly face institutional divestment pressure.
 
 **If sector ETF data returns 402:** Use `getSectorPerformanceSnapshot` as primary sector signal. If BOTH fail, cap Macro at 6 per scoring rubrics.
 
@@ -30,7 +31,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 
 ## Phase 7: Fundamentals + Financial Health
 
-**18 FMP calls, parallel:**
+**22 FMP calls, parallel:**
 - `mcp__financial-modeling-prep__getFinancialRatiosTTM` — P/E, P/B, EV/EBITDA, margins (gross, operating, net), current ratio, debt/equity, dividend yield, FCF ratios
 - `mcp__financial-modeling-prep__getKeyMetricsTTM` — ROE, ROIC, EV/Sales, EV/OCF, netDebt/EBITDA, cash conversion cycle, R&D/revenue, income quality, Graham number (26 unique fields)
 - `mcp__financial-modeling-prep__getIncomeStatement` with period="FY", limit=2 — absolute revenue ($), net income, EPS, R&D, SGA, **SBC (stock-based compensation)**. Needed for valuation, SBC margin adjustment, and reporting.
@@ -49,6 +50,10 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - `mcp__financial-modeling-prep__getOwnerEarnings` with symbol=$ARGUMENTS — Buffett-style owner earnings metric (complements manual D&A calculation)
 - `mcp__financial-modeling-prep__getHistoricalEmployeeCount` with symbol=$ARGUMENTS — workforce growth trends. **Hiring leads revenue by 1-2 quarters.** If headcount grows faster than revenue, efficiency is declining. If headcount shrinks while revenue grows, margins will expand.
 - `mcp__financial-modeling-prep__getExecutiveCompensation` with symbol=$ARGUMENTS — exec salary vs stock awards. **Heavy stock-based compensation = management incentive alignment.** Also needed for SBC margin adjustment.
+- `mcp__financial-modeling-prep__getCashFlowStatementTTM` — trailing cash flow for most current FCF snapshot. Complements annual `getCashFlowStatement` when quarter shows material change.
+- `mcp__financial-modeling-prep__getCompanyNotes` with symbol=$ARGUMENTS — footnotes and disclosure items. Catches off-balance-sheet obligations, contingent liabilities, related-party transactions that P&L data misses.
+- `mcp__financial-modeling-prep__getEmployeeCount` with symbol=$ARGUMENTS — current headcount snapshot. Cross-reference with `getHistoricalEmployeeCount` for latest hiring/layoff trajectory.
+- `mcp__financial-modeling-prep__getExecutiveCompensationBenchmark` with symbol=$ARGUMENTS — exec comp relative to peers. Flags excessive compensation (agency risk) or unusually low comp (founder-led alignment).
 
 **ETF route:** Replace Phase 7 with:
 - `mcp__financial-modeling-prep__getFundHoldings` — top holdings and weights
@@ -70,6 +75,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - Call `mcp__financial-modeling-prep__getFinancialRatiosTTM` for each of the top 3 peers (3 parallel calls) — returns P/E, EV/EBITDA, gross margin, operating margin, ROE, D/E for valuation comparison.
 - For large-cap stocks (>$50B): expand to top 5 peers for better statistical reliability.
 - **Peer validation:** Reject peers with mismatched sector/industry, >10x market cap difference, or revenue model mismatch. If `getStockPeers` returns irrelevant results, fall back to industry P/E from `getIndustryPESnapshot` (already collected in Phase 2).
+- **Efficiency option:** Call `mcp__financial-modeling-prep__getRatiosTTMBulk` to get all peer ratios in a single bulk call instead of individual `getFinancialRatiosTTM` per peer. POST-FILTER for target peers.
 
 **Build peer comparison table:** Compare the stock vs peers on P/E, EV/EBITDA, Gross Margin, Operating Margin, Revenue Growth, ROE, D/E, market cap, and price momentum. This data feeds into Track A Valuation criteria ("P/E below peer median").
 
@@ -77,7 +83,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 
 ## Phase 9: Valuation & Analyst Targets
 
-### Step 1 — Valuation models (4 calls, parallel)
+### Step 1 — Valuation models (5 calls, parallel)
 
 - `mcp__financial-modeling-prep__getDCFValuation` with symbol=$ARGUMENTS — standard (unlevered) DCF intrinsic value
 - `mcp__financial-modeling-prep__getLeveredDCFValuation` with symbol=$ARGUMENTS — levered DCF (accounts for debt). For leveraged companies, can differ 20-40% from unlevered. Together they create a valuation range.
@@ -89,6 +95,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
   - **costOfDebt** = interestExpense / totalDebt from Phase 7 `getBalanceSheetStatement` + `getIncomeStatement`
   - **taxRate** = from Phase 7 `getIncomeStatement` (incomeTaxExpense / incomeBeforeTax)
   - Remaining 12 of 18 parameters use FMP defaults (reasonable for most stocks)
+- `mcp__financial-modeling-prep__calculateCustomLeveredDCF` with symbol=$ARGUMENTS — custom levered DCF using same inputs as custom unlevered. Provides debt-adjusted custom valuation. Compare against standard `getLeveredDCFValuation` to assess custom model sensitivity.
 - `mcp__financial-modeling-prep__getMarketRiskPremium` — equity risk premium. **Cache per session.**
 
 **DCF usage in scoring (from `_shared/scoring-rubrics.md`):**
@@ -98,7 +105,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 
 **Growth detection:** Revenue growth >20% YoY (from Phase 7) OR P/E >40 → Track B.
 
-### Step 2 — Analyst sentiment (8 calls, parallel)
+### Step 2 — Analyst sentiment (11 calls, parallel)
 
 - `mcp__financial-modeling-prep__getPriceTargetSummary` with symbol=$ARGUMENTS — analyst consensus target + analyst COUNT + standard deviation + high/low. "$180 from 3 analysts" vs "$180 from 25 analysts" is completely different confidence.
 - `mcp__financial-modeling-prep__getPriceTargetConsensus` with symbol=$ARGUMENTS — structured consensus with targetHigh/targetLow/targetMedian/targetConsensus. More reliable than summary for scoring.
@@ -110,6 +117,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - `mcp__financial-modeling-prep__getAnalystEstimates` with symbol=$ARGUMENTS, period="quarter", limit=4 — forward EPS/revenue estimates for next 4 quarters. Rising estimates = analysts playing catch-up = bullish. Falling estimates = headwind. **Feeds into Earnings Catalyst Modifier (Override 6).**
 - `mcp__financial-modeling-prep__getEarningsSurprisesBulk` with year={current year} — batch surprise data. **Track surprise MAGNITUDE trend.** If beat margin is INCREASING each quarter (e.g., +2.6% → +7.8% → +23.4%), the stock is accelerating and likely to beat big again. Narrowing beats = sell-the-news risk.
 - `mcp__financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS — recent PT changes with analyst names, firm, date, old PT → new PT. **Detects PT revision ACCELERATION.** If 3+ analysts raised PTs in 2 weeks before earnings, this is a strong bullish catalyst signal.
+- `mcp__financial-modeling-prep__getHistoricalRatings` with symbol=$ARGUMENTS — time-series of overall rating (Strong Buy/Buy/Hold/Sell) over past 6-12 months. Detects RATING DRIFT: if consensus shifted from Buy to Hold over 6 months, the stock is losing analyst confidence even if individual upgrades exist.
 
 **Crypto/ETF route:** Skip DCF/custom DCF. Use price target only if available. Skip earnings reports.
 
@@ -141,6 +149,14 @@ Write all collected data to `reports/{SYMBOL}_fundamental.md` with this structur
 ## Revenue Segments
 - Product: {breakdown}
 - Geographic: {breakdown with concentration risk flag}
+
+## ESG Profile
+- Overall: X | Environmental: X | Social: X | Governance: X
+- Flags: {ESG risks, institutional divestment pressure, or "N/A"}
+
+## Debt Maturity & Notes
+- Company Notes: {off-balance-sheet items, contingent liabilities, or "None"}
+- Key Disclosures: {material footnotes from getCompanyNotes, or "None"}
 
 ## Market Cap Trajectory
 - Q-4: $X → Q-3: $X → Q-2: $X → Q-1: $X → Now: $X

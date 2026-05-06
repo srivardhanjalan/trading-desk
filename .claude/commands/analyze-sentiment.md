@@ -65,7 +65,7 @@ Calculate these 10 metrics from the chain data:
 
 ## Phase 11: Sentiment & Insider/Political Activity
 
-### Step 1 — Multi-platform sentiment + news (15-18 calls, parallel)
+### Step 1 — Multi-platform sentiment + news (20-23 calls, parallel)
 
 - `mcp__tradingview-analysis__market_sentiment` with symbol=$ARGUMENTS, market="stocks" — Reddit sentiment across r/stocks, r/wsb, r/investing, r/options
 - `mcp__tradingview-analysis__multi_agent_analysis` with symbol=$ARGUMENTS, exchange from Phase 1, timeframe="1D" — 3-agent debate: Technical + Sentiment + Risk Manager
@@ -95,6 +95,11 @@ Calculate these 10 metrics from the chain data:
 - `WebSearch` query: "$ARGUMENTS stock news {current_year}" — **MANDATORY companion to searchStockNews.** Captures analyst initiations, blog commentary, CNBC/Bloomberg articles, and breaking news that FMP may not index. **ALWAYS use BOTH FMP searchStockNews AND WebSearch for news — never one without the other.**
 - `mcp__financial-modeling-prep__searchPressReleases` with symbol=$ARGUMENTS, limit=10 — symbol-specific press releases. Catches pre-earnings guidance revisions, contract wins, partnership announcements. **Feeds into Extension Catalyst Exception.**
 - `mcp__financial-modeling-prep__getFilingsBySymbol` with symbol=$ARGUMENTS, limit=10 — recent SEC filings (8-K, 10-Q, etc.). **8-K filings signal material events** — guidance changes, exec departures, major contracts. A cluster of 8-Ks before earnings = something is happening.
+- `mcp__financial-modeling-prep__getDividends` with symbol=$ARGUMENTS — dividend history and yield trend. Rising dividends = shareholder return commitment. Dividend cuts = major negative signal. Feeds into Fundamental and Risk scoring.
+- `mcp__financial-modeling-prep__getDividendsCalendar` with from={today}, to={today + 30 days} — upcoming ex-dividend dates. POST-FILTER for symbol. Ex-div within 5 days affects near-term price support.
+- `mcp__financial-modeling-prep__getStockSplitCalendar` with from={today}, to={today + 60 days} — upcoming stock splits. POST-FILTER for symbol. Forward splits increase retail interest; reverse splits are often bearish.
+- `mcp__financial-modeling-prep__searchEquityOfferings` with symbol=$ARGUMENTS — recent equity/debt offerings. Secondary offerings (dilution) are material negative signals. Convertible notes add future dilution risk. Feeds into Risk scoring.
+- `mcp__financial-modeling-prep__getLatest8KFilings` — most recent material event filings across all companies. POST-FILTER for symbol. Clusters of 8-Ks near earnings signal material events in progress.
 
 **Crypto route:** `market_sentiment` + `multi_agent_analysis` + `mcp__financial-modeling-prep__searchCryptoNews` + `WebSearch` Twitter. Skip insider/congressional/corporate actions.
 
@@ -120,9 +125,11 @@ If fewer than 4 of 6 items are completed, add 'NEWS NLP: INCOMPLETE' warning to 
 
 ## Phase 12: Institutional Ownership
 
-**2 calls, parallel:**
+**4 calls, parallel:**
 - Call `mcp__financial-modeling-prep__getPositionsSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter}
 - Call `mcp__financial-modeling-prep__getHolderPerformanceSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **Are the institutional holders good investors?** If high-alpha funds (those outperforming S&P 500) are accumulating, this is a stronger signal than generic institutional buying. Cathie Wood selling while Renaissance buying = trust Renaissance.
+- Call `mcp__financial-modeling-prep__getForm13FFilingDates` with symbol=$ARGUMENTS — exact filing dates for the symbol's institutional holders. Detects STALE vs FRESH 13F data and identifies which funds filed most recently.
+- Call `mcp__financial-modeling-prep__getHolderIndustryBreakdown` with symbol=$ARGUMENTS — which industries/sectors the institutional holders come from. If holders are concentrated in one industry (e.g., all tech funds), a sector rotation would trigger correlated selling.
 
 **13F filing lag:** Use the most recent quarter Q where (Q_end_date + 45 days) < today. This guarantees all filings for that quarter are past deadline.
 Example: On May 4, 2026: Q1 ends Mar 31, deadline May 15 — NOT past → skip. Q4 ends Dec 31, deadline Feb 14 — past → USE Q4 2025.
@@ -234,6 +241,8 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 - Holders: X institutions
 - Share change: {increased/decreased by X shares}
 - Quarter: {Q and year, with lag note}
+- Filing Freshness: {latest 13F filing date, staleness weight applied}
+- Holder Industry Concentration: {diversified or concentrated in X sector}
 
 ## Earnings
 - Next earnings: {date or "Not within 30 days"}
@@ -241,6 +250,19 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 
 ## Corporate Actions
 - Upcoming: {splits/dividends/mergers or "None within 30 days"}
+
+## Dividends & Splits
+- Dividend History: {trend or "N/A"}
+- Next Ex-Div: {date or "None within 30 days"}
+- Upcoming Split: {details or "None within 60 days"}
+
+## Equity Offerings & Dilution
+- Recent Offerings: {secondary/convertible details or "None"}
+- Dilution Risk: {assessment based on offering history}
+
+## Recent 8-K Filings
+- {date}: {filing summary}
+- Cluster Alert: {yes/no — multiple 8-Ks near earnings}
 
 ## Backtesting
 - Best Strategy: {name}

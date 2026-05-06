@@ -50,6 +50,16 @@ From `coin_analysis`: extract RSI, MACD (value + signal + histogram), Stochastic
 
 Record the RSI value — it's used for overbought/oversold overrides in Phase 16.
 
+**FMP Technical Fallback (when TradingView Analysis returns no data — common for OTC stocks):**
+If BOTH `multi_timeframe_analysis` and `coin_analysis` return errors or empty data, fall back to FMP technical indicators:
+- Call `mcp__financial-modeling-prep__getRSI` with symbol=$ARGUMENTS, periodLength=14, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — RSI(14) daily values
+- Call `mcp__financial-modeling-prep__getSMA` with symbol=$ARGUMENTS, periodLength=50, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — SMA(50)
+- Call `mcp__financial-modeling-prep__getSMA` with symbol=$ARGUMENTS, periodLength=200, timeframe="1day", from_date={300 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — SMA(200)
+- Call `mcp__financial-modeling-prep__getEMA` with symbol=$ARGUMENTS, periodLength=20, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — EMA(20) for Bollinger midline proxy
+- Call `mcp__financial-modeling-prep__getADX` with symbol=$ARGUMENTS, periodLength=14, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — ADX, +DI, -DI
+
+Note: FMP fallback does NOT provide Stochastic, support/resistance, or multi-timeframe alignment. Apply -1 data gap penalty to Technical score when using FMP fallback. TradingView Desktop (Phase 6) can still provide visual confirmation and indicator values.
+
 ---
 
 ## Phase 4: Volume & Smart Money

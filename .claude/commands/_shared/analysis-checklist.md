@@ -22,10 +22,11 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `Alpaca: get_stock_snapshot` — bid/ask prices/sizes, compute spread %
 - [ ] **Asset classification:** Stock / Crypto / ETF / ADR / OTC (determines routing for all later phases)
 
-### Phase 3: Multi-Timeframe Technicals (2 parallel calls)
+### Phase 3: Multi-Timeframe Technicals (2 parallel calls + FMP fallback)
 - [ ] `TV-Analysis: multi_timeframe_analysis` — Weekly/Daily/4H/1H/15m alignment
 - [ ] `TV-Analysis: coin_analysis` (timeframe=1D) — RSI, MACD, Stochastic, ADX, Bollinger, SMAs/EMAs, support/resistance
 - [ ] **Record:** RSI value, ADX value, +DI/-DI ratio (needed for overrides)
+- [ ] **FMP Fallback (if both TV-Analysis calls fail — OTC stocks):** `getRSI`, `getSMA`(50), `getSMA`(200), `getEMA`(20), `getADX` — 5 parallel FMP calls. Apply -1 data gap penalty.
 
 ### Phase 4: Volume & Float (4 parallel calls)
 - [ ] `FMP: getShareFloat` — float size, short interest %, short ratio
@@ -53,7 +54,7 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 
 ## PHASE GROUP 2: FUNDAMENTAL (Phases 2, 7, 8, 9)
 
-### Phase 2: Macro & Sector Context (8 parallel calls, all cacheable)
+### Phase 2: Macro & Sector Context (9 parallel calls, all cacheable)
 - [ ] `FMP: getTreasuryRates` — 2Y, 5Y, 10Y, 30Y yields; yield curve shape
 - [ ] `FMP: getStockPriceChange` with sector ETF — sector momentum (use sector→ETF mapping)
 - [ ] `FMP: getIndexQuote` (^VIX) — fear gauge (<15 calm, 15-20 normal, 20-25 elevated, 25-30 fear, >30 PANIC)
@@ -62,8 +63,9 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `FMP: getHistoricalSectorPerformance` — 3-month sector trend
 - [ ] `FMP: getIndustryPESnapshot` — current industry P/E
 - [ ] `FMP: getEconomicCalendar` (next 14 days) — FOMC, CPI, jobs data
+- [ ] `FMP: getESGRatings` — ESG score (environmental, social, governance), institutional divestment risk
 
-### Phase 7: Financial Health (18 parallel FMP calls)
+### Phase 7: Financial Health (22 parallel FMP calls)
 - [ ] `getFinancialRatiosTTM` — P/E, P/B, EV/EBITDA, margins, D/E, FCF ratios
 - [ ] `getKeyMetricsTTM` — ROE, ROIC, EV/Sales, Graham number (26 fields)
 - [ ] `getIncomeStatement` (FY, limit=2) — revenue, net income, EPS, R&D, SBC
@@ -82,23 +84,28 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `getOwnerEarnings` — Buffett-style owner earnings
 - [ ] `getHistoricalEmployeeCount` — workforce growth (leading indicator)
 - [ ] `getExecutiveCompensation` — exec salary vs stock awards, SBC check
+- [ ] `getCashFlowStatementTTM` — trailing cash flow for most current FCF snapshot
+- [ ] `getCompanyNotes` — footnotes, off-balance-sheet obligations, contingent liabilities
+- [ ] `getEmployeeCount` — current headcount snapshot (cross-ref with historical)
+- [ ] `getExecutiveCompensationBenchmark` — exec comp vs peers (agency risk flag)
 
 ### Phase 8: Peer Comparison (sequential then parallel)
 - [ ] `FMP: getStockPeers` — identify top 3-5 peers
 - [ ] `FMP: getBatchQuotes` — price, change%, marketCap for stock + peers
-- [ ] `FMP: getFinancialRatiosTTM` × 3 peers — P/E, EV/EBITDA, margins, ROE
+- [ ] `FMP: getFinancialRatiosTTM` × 3 peers — P/E, EV/EBITDA, margins, ROE (or `getRatiosTTMBulk` for efficiency)
 - [ ] **Build peer comparison table:** P/E, EV/EBITDA, Gross Margin, Op Margin, Revenue Growth
 
-### Phase 9: Valuation & Analyst Targets (4 + 10 parallel calls)
+### Phase 9: Valuation & Analyst Targets (5 + 11 parallel calls)
 
-**Valuation Models (4 parallel):**
+**Valuation Models (5 parallel):**
 - [ ] `FMP: getDCFValuation` — standard (unlevered) DCF
 - [ ] `FMP: getLeveredDCFValuation` — levered DCF
 - [ ] `FMP: calculateCustomDCF` — custom DCF with real growth inputs from Phase 7
+- [ ] `FMP: calculateCustomLeveredDCF` — custom levered DCF (debt-adjusted custom valuation)
 - [ ] `FMP: getMarketRiskPremium` — equity risk premium (cacheable)
-- [ ] **Validate custom DCF:** if >10x price or <0, discard as INVALID
+- [ ] **Validate custom DCFs:** if >10x price or <0, discard as INVALID
 
-**Analyst Sentiment (10 parallel):**
+**Analyst Sentiment (11 parallel):**
 - [ ] `FMP: getPriceTargetSummary` — consensus target + analyst count + std dev
 - [ ] `FMP: getPriceTargetConsensus` — high/low/median/consensus targets
 - [ ] `FMP: getPriceTargetLatestNews` — recent PT changes with analyst names
@@ -109,6 +116,7 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `FMP: getAnalystEstimates` (quarter, limit=4) — forward EPS/revenue estimates
 - [ ] `FMP: getEarningsSurprisesBulk` (year) — batch surprise data (POST-FILTER)
 - [ ] `FMP: getPriceTargetNews` — PT revision acceleration
+- [ ] `FMP: getHistoricalRatings` — rating drift detection (consensus trend over 6-12 months)
 - [ ] **Determine Track:** Revenue growth >20% OR P/E >40 → Track B (PEG). Else Track A (DCF).
 - [ ] **Save:** `reports/{SYMBOL}_fundamental.md`
 
@@ -139,7 +147,7 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] Premium Trend (7-day % change)
 - [ ] Net Delta Exposure (volume-weighted delta skew)
 
-### Phase 11: Sentiment & Insider Activity (~27 parallel calls)
+### Phase 11: Sentiment & Insider Activity (~32 parallel calls)
 
 **Multi-platform sentiment:**
 - [ ] `TV-Analysis: market_sentiment` — Reddit sentiment
@@ -173,6 +181,11 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `WebSearch:` "{SYMBOL} stock news {year}" — **MANDATORY companion to searchStockNews. ALWAYS use BOTH.**
 - [ ] `FMP: searchPressReleases` (limit=10) — symbol-specific press releases
 - [ ] `FMP: getFilingsBySymbol` (limit=10) — recent SEC filings (8-K, 10-Q)
+- [ ] `FMP: getDividends` — dividend history and yield trend
+- [ ] `FMP: getDividendsCalendar` (next 30 days) — upcoming ex-div dates (POST-FILTER)
+- [ ] `FMP: getStockSplitCalendar` (next 60 days) — upcoming splits (POST-FILTER)
+- [ ] `FMP: searchEquityOfferings` — recent equity/debt offerings (dilution risk)
+- [ ] `FMP: getLatest8KFilings` — material event filings (POST-FILTER for symbol)
 
 **News NLP (sequential after Step 1):**
 - [ ] `WebFetch` article 1 — extract: key facts, sentiment, impact, time horizon
@@ -183,9 +196,11 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] Assign source credibility tiers: Tier 1 (Reuters/Bloomberg/WSJ) = 1.0x, Tier 2 (CNBC/Yahoo) = 0.8x, Tier 3 = 0.5x
 - [ ] Cross-reference analyst grade/price target news with article sentiment
 
-### Phase 12: Institutional Ownership (2 parallel calls)
+### Phase 12: Institutional Ownership (4 parallel calls)
 - [ ] `FMP: getPositionsSummary` (adjusted quarter for 13F lag) — holders, share changes
 - [ ] `FMP: getHolderPerformanceSummary` — institutional holder quality (alpha)
+- [ ] `FMP: getForm13FFilingDates` — exact filing dates, stale vs fresh data detection
+- [ ] `FMP: getHolderIndustryBreakdown` — holder industry concentration (correlated selling risk)
 - [ ] **13F lag check:** Use most recent quarter where (Q_end + 45 days) < today
 
 ### Phase 13: Earnings Transcript (conditional)
@@ -210,9 +225,10 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 
 ## PHASE GROUP 4: SYNTHESIS (Phases 15, 16, 16b)
 
-### Phase 15: Risk Quantification & Position Sizing (4 parallel calls)
+### Phase 15: Risk Quantification & Position Sizing (5 parallel calls)
 - [ ] `Alpaca: get_account_info` — equity, buying power, cash
 - [ ] `Alpaca: get_open_position` (symbol) — existing position P&L, quantity
+- [ ] `Alpaca: get_portfolio_history` (3M, 1D) — portfolio equity curve, drawdown tracking
 - [ ] `FMP: getStockPriceChange` — multi-period momentum (if not already cached)
 - [ ] `WebSearch:` "{SYMBOL} earnings estimate revisions {year}" — revision trend
 
@@ -325,13 +341,13 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 
 | Server | Calls | Notes |
 |--------|------:|-------|
-| **FMP** | ~60 | Bulk of data; many cacheable per session |
+| **FMP** | ~75 | Bulk of data; many cacheable per session |
 | **TV-Analysis** | ~12 | Screeners, backtests, sentiment |
 | **TV-Desktop** | ~13 | Chart setup, indicators, screenshot, annotations |
-| **Alpaca** | ~8 | Market clock, options chain, account, positions |
+| **Alpaca** | ~9 | Market clock, options chain, account, positions, portfolio history |
 | **WebSearch** | ~5 | Sentiment, short interest, 10b5-1, estimate revisions |
-| **WebFetch** | ~3 | News article NLP |
-| **Total** | **~101** | Reduced to ~75-85 with caching and conditionals |
+| **WebFetch** | ~5 | News article NLP (4-5 articles) |
+| **Total** | **~119** | Reduced to ~85-100 with caching and conditionals |
 
 ---
 

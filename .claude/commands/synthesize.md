@@ -15,12 +15,13 @@ If any report file is missing, note which phases are unavailable and reduce data
 
 ## Phase 15: Risk Quantification & Position Sizing
 
-**4 calls (2 Alpaca + 1 FMP + 1 WebSearch, parallel):**
+**5 calls (3 Alpaca + 1 FMP + 1 WebSearch, parallel):**
 
 - Call `mcp__alpaca__get_account_info` — current equity, buying power, cash
 - Call `mcp__alpaca__get_open_position` with symbol=$ARGUMENTS — check if already held, current P&L, quantity
 - Call `mcp__financial-modeling-prep__getStockPriceChange` with symbol=$ARGUMENTS — multi-period price performance (1D, 5D, 1M, 3M, 6M, 1Y) for momentum extension scoring
 - Call `WebSearch` query: "$ARGUMENTS earnings estimate revisions {current_year}" — analyst estimate revision trend from Zacks/Yahoo. Fallback for broken `getAnalystEstimates` (402 error). Rising estimates = bullish catalyst. Falling = headwind.
+- Call `mcp__alpaca__get_portfolio_history` with period="3M", timeframe="1D" — portfolio-level equity curve and drawdown over last 3 months. Used for sector concentration context and portfolio-level risk assessment. If max drawdown >15% in last month, apply more conservative position sizing.
 
 ### Derived Calculations
 
