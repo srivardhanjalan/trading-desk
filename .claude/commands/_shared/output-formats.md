@@ -4,6 +4,16 @@ Templates for consistent output across all commands.
 
 ---
 
+## CRITICAL RULE: DISPLAY CONSISTENCY
+
+**Every stock analysis MUST display the FULL Compact Card (all 16 sections below) to the user in conversation output.** This is non-optional. Do NOT summarize, abbreviate, or skip sections. The same format applies to every stock, every time.
+
+After writing report files to disk, you MUST also display the complete Compact Card in the conversation. Writing to files alone is NOT sufficient.
+
+**Variance between runs is a pipeline violation.** If a section has no data (e.g., no congressional trades), display the section header with "None detected" — do NOT omit the section.
+
+---
+
 ## Market Hours Header (from `Alpaca: get_clock`)
 
 - `is_open=true`: `Market OPEN — live data | VIX: {value} ({label})`
@@ -13,18 +23,18 @@ VIX labels: <15 = "calm", 15-20 = "normal", 20-25 = "elevated", 25-30 = "fear", 
 
 ---
 
-## Compact Card (Default for /analyze)
+## Compact Card — 16 Mandatory Sections
 
-Use markdown tables throughout for clean, consistent rendering. All sections use tables.
+Every analysis MUST include ALL 16 sections in this exact order. No section may be skipped or merged. If data is unavailable for a section, display "Data unavailable — {reason}" within that section.
 
-### Header
+### Section 1: Header [MANDATORY]
 
 ```
 # {SYMBOL} — {COMPANY_NAME} | {DATE}
 
 | | |
 |---|---|
-| **Price** | ${PRICE} ({CHANGE_PCT}%) |
+| **Price** | ${PRICE} ({CHANGE_PCT}%) — {AH_NOTE_IF_APPLICABLE} |
 | **Sector** | {SECTOR} / {INDUSTRY} |
 | **Score** | **{COMPOSITE}/100 — {SIGNAL}** |
 | **Confidence** | {CONF} |
@@ -32,34 +42,42 @@ Use markdown tables throughout for clean, consistent rendering. All sections use
 | **Market** | {MARKET_HOURS_HEADER} |
 ```
 
-### Scores
+### Section 2: Scores Table [MANDATORY]
+
+All 8 dimensions must appear. Use `█` filled and `░` empty (10 chars total).
 
 ```
+## Scores
+
 | Dimension | Score | Bar | Weight | Key Driver |
 |-----------|------:|-----|-------:|------------|
-| Technical | {T}/10 | {T_BAR} | 22% | {T_DRIVER} |
-| Fundamental | {F}/10 | {F_BAR} | 15% | {F_DRIVER} |
-| Valuation | {V}/10 | {V_BAR} | 15% | {V_DRIVER} |
-| Smart Money | {SM}/10 | {SM_BAR} | 13% | {SM_DRIVER} |
-| Risk (10=safest) | {R}/10 | {R_BAR} | 12% | {R_DRIVER} |
-| Backtest | {BT}/10 | {BT_BAR} | 10% | {BT_DRIVER} |
-| Sentiment | {S}/10 | {S_BAR} | 7% | {S_DRIVER} |
-| Macro | {M}/10 | {M_BAR} | 6% | {M_DRIVER} |
-| **Composite** | **{RAW}/100** | | | Overrides: {OVERRIDES_APPLIED} → **{FINAL}/100** |
+| Technical | {T}/10 | {BAR} | {WT}% | {ONE_LINE_REASON} |
+| Fundamental | {F}/10 | {BAR} | {WT}% | {ONE_LINE_REASON} |
+| Valuation | {V}/10 | {BAR} | {WT}% | {ONE_LINE_REASON} |
+| Smart Money | {SM}/10 | {BAR} | {WT}% | {ONE_LINE_REASON} |
+| Risk (10=safest) | {R}/10 | {BAR} | {WT}% | {ONE_LINE_REASON} |
+| Backtest | {BT}/10 | {BAR} | {WT}% | {ONE_LINE_REASON} |
+| Sentiment | {S}/10 | {BAR} | {WT}% | {ONE_LINE_REASON} |
+| Macro | {M}/10 | {BAR} | {WT}% | {ONE_LINE_REASON} |
+| **Composite** | **{RAW}/100** | | | Overrides: {LIST} → **{FINAL}/100** |
 ```
 
-After the scores table, add the **Quality-Timing** and **Momentum Extension** rows:
+Key Driver: one-line reason for the score. Must include the primary data point(s) that determined the score.
+
+### Section 3: Quality vs Timing [MANDATORY]
 
 ```
 ### Quality vs Timing
 | Sub-Score | Value | Components | Guidance |
 |-----------|------:|------------|----------|
 | **Quality** | {Q}/100 | Fund {F} × 0.30 + Val {V} × 0.25 + Smart {SM} × 0.25 + Macro {M} × 0.20 | "Should I own this?" |
-| **Timing** | {T_SCORE}/100 | Tech {T} × 0.35 + Risk {R} × 0.25 + Sent {S} × 0.20 + BT {BT} × 0.20 | "Should I buy now?" |
+| **Timing** | {T}/100 | Tech {T} × 0.30 + Risk {R} × 0.25 + Sent {S} × 0.20 + BT {BT} × 0.15 + Opt {O} × 0.10 | "Should I buy now?" |
 | **Matrix** | | Quality {Q_LABEL} + Timing {T_LABEL} | → {MATRIX_SIGNAL} |
 ```
 
-If pre-earnings weights active, add: `⚡ PRE-EARNINGS WEIGHTS: Earnings in {N} days. Fund/Sentiment emphasized.`
+If pre-earnings weights active, add note below table.
+
+### Section 4: Momentum & Extension [MANDATORY]
 
 ```
 ### Momentum
@@ -67,163 +85,230 @@ If pre-earnings weights active, add: `⚡ PRE-EARNINGS WEIGHTS: Earnings in {N} 
 |--------|---:|---:|---:|---:|---:|---:|
 | Change | {1D}% | {5D}% | {1M}% | {3M}% | {6M}% | {1Y}% |
 
-**Extension Risk: {CATEGORY}** — {1M_DESCRIPTION}. Override 5: {MODIFIER_APPLIED}.
-Categories: EXTREME (1M>=80%) | SEVERE (60-80%) | HIGH (45-60%) | MODERATE (30-45%) | LOW (15-30%) | NONE (<15%). Market cap scaling applied: >$100B=1.0x, $10-100B=1.2x, $2-10B=1.5x, <$2B=2.0x.
+**Extension Risk: {CATEGORY}** — {DESCRIPTION}. Override 5: {MODIFIER}.
 ```
 
-Bar format: `████████░░` for 8/10 — use `█` filled, `░` empty, 10 chars.
-Key Driver: one-line reason for the score (e.g. "4/5 TF bullish, RSI 79 overbought").
+Categories: EXTREME (1M>=80%) | SEVERE (60-80%) | HIGH (45-60%) | MODERATE (30-45%) | LOW (15-30%) | NONE (<15%). Market cap scaling applied.
 
-### Valuation
+### Section 5: Valuation [MANDATORY]
 
 ```
+## Valuation
+
 | Metric | Value | Note |
 |--------|------:|------|
-| **Valuation Track** | {TRACK_LABEL} | {TRACK_REASON} |
-| PEG (or P/E for Track A) | {PEG_VALUE} | {PEG_LABEL} |
-| PSG (if Track B) | {PSG_VALUE} | {PSG_LABEL} |
-| DCF — Standard | ${STD} | {STD_NOTE} |
-| DCF — Levered | ${LEV} | {LEV_NOTE} |
-| DCF — Custom | ${CUSTOM} | {CUSTOM_NOTE} |
-| Analyst Target | ${TARGET} ({UPSIDE}%) | {COUNT} analysts, {RATING_BREAKDOWN} |
-| Next Earnings | {EARNINGS_DATE} | EPS est {EPS_EST}, Rev est {REV_EST} |
+| **Valuation Track** | {TRACK} | {REASON} |
+| Trailing PEG (or P/E) | {VALUE} | {LABEL} |
+| Forward PEG (or P/E) | {VALUE} | {LABEL} |
+| PEG Divergence | {RATIO}x | {NOTE} |
+| EPS-PEG Adjustment | {+N or N/A} | {REASON} |
+| DCF — Standard | ${VALUE} | {NOTE} |
+| DCF — Levered | ${VALUE} | {NOTE} |
+| DCF — Custom | ${VALUE} | {NOTE — or INVALID with reason} |
+| Analyst Target | ${TARGET} ({UPSIDE}%) | {COUNT} analysts, {BREAKDOWN} |
+| Next Earnings | {DATE} | EPS est {EPS}, Rev est {REV} |
 ```
 
-For Track B growth stocks, add a note row: "DCF unreliable for high-growth — PEG is primary metric"
+For Track B, add note: "DCF unreliable for high-growth — PEG is primary metric."
 
-### Sentiment
+### Section 6: Sentiment [MANDATORY]
 
 ```
+## Sentiment
+
 | Source | Signal | Detail |
 |--------|--------|--------|
-| Reddit | {REDDIT_SIGNAL} | {REDDIT_DETAIL} |
-| StockTwits | {ST_SIGNAL} | {ST_DETAIL} |
-| Twitter/X | {TW_SIGNAL} | {TW_DETAIL} |
-| News NLP | {NEWS_SIGNAL} | {NEWS_DETAIL} |
-| Analyst Actions | {ANALYST_SIGNAL} | {ANALYST_DETAIL} |
+| Reddit | {SIGNAL} | {DETAIL — post count, dominant theme} |
+| StockTwits | {SIGNAL} | {DETAIL} |
+| Twitter/X | {SIGNAL} | {DETAIL — note if second-hand} |
+| News NLP | {SIGNAL} | {DETAIL — article count, tier breakdown} |
+| Analyst Actions | {SIGNAL} | {DETAIL — recent upgrades/downgrades} |
 ```
 
-### Options Flow
+If multi-agent analysis was run, add row: `| Multi-Agent | {SIGNAL} | {NET_SCORE}, {AGENT_BREAKDOWN} |`
+
+### Section 7: Options Flow [MANDATORY]
 
 ```
+## Options Flow
+
 | Metric | Value | Interpretation |
 |--------|------:|----------------|
-| P/C Volume Ratio | {PC_RATIO} | {PC_LABEL} |
-| IV/HV Ratio | {IVHV} | {IVHV_LABEL} |
-| IV Skew | Put {PUT_IV}% / Call {CALL_IV}% | {SKEW_LABEL} |
-| Expected Move | +/-${EM} (+/-{EM_PCT}%) | {EM_CONTEXT} |
-| Max Pain | ${MP} | {MP_VS_PRICE} |
-| Unusual Activity | {UNUSUAL_STRIKES} | {UNUSUAL_DETAIL} |
+| P/C Volume Ratio | {RATIO} | {BULLISH/BEARISH/NEUTRAL} |
+| P/C OI Ratio | {RATIO or N/A} | {INTERPRETATION} |
+| IV/HV Ratio | {RATIO} | {LABEL — normal/elevated/extreme} |
+| IV Skew | {DESCRIPTION} | {NORMAL/ABNORMAL — detail} |
+| Expected Move | ±${AMOUNT} (±{PCT}%) | {CONTEXT — straddle vs IV method} |
+| Max Pain | ${PRICE} | {VS_CURRENT — above/below/at} |
+| Unusual Activity | {STRIKES} | {DETAIL — volume multiples} |
+| Net Delta Exposure | {VALUE} | {BULLISH/BEARISH/NEUTRAL} |
 ```
 
-### Insider & Institutional
+If no options market exists (small-cap), display: "OPTIONS N/A — no liquid options market. Smart Money scored from insider/institutional only."
 
-Insider table (60-day window):
+### Section 8: Insider Activity [MANDATORY]
 
 ```
-| Date | Name | Role | Action | Shares | Price | Value |
-|------|------|------|--------|-------:|------:|------:|
-| {rows} |
-| **Net** | | | **{NET_LABEL}** | | | **${NET_VALUE}** |
+## Insider & Institutional
+
+| Date | Name | Role | Action | Value | 10b5-1 |
+|------|------|------|--------|------:|--------|
+| {DATE} | {NAME} | {ROLE} | {BUY/SELL} | ${VALUE} | {CONFIRMED/NOT VERIFIED} |
+| ... | | | | | |
+| **Net** | | | **{NET_LABEL}** | **${TOTAL}** | |
 ```
 
-Institutional (latest COMPLETE 13F quarter — never use partial):
+The 10b5-1 column is MANDATORY for every insider listed. Must show verification status.
+
+### Section 9: Institutional Ownership [MANDATORY]
 
 ```
 | Metric | Current | Prior Q | Change |
 |--------|--------:|--------:|-------:|
-| Holders | {INST_HOLDERS} | {PREV_HOLDERS} | {CHANGE} |
-| 13F Shares | {SHARES} | {PREV_SHARES} | {SHARE_CHANGE} |
-| Ownership % | {OWN_PCT}% | {PREV_OWN}% | {OWN_CHANGE} |
-| New Positions | {NEW} | | |
-| Increased | {INC} | | |
-| Closed | {CLOSED} | | |
-| Reduced | {RED} | | |
+| Holders | {N} | {N} | {+/-N} |
+| Shares | {N} | {N} | {+/-PCT}% |
+| Ownership | {PCT}% | {PCT}% | {+/-PP}pp |
+| **Staleness** | **{N} days** | | **{WEIGHT}x** |
 ```
 
-### Congressional Activity
+The Staleness row is MANDATORY. Always show 13F data age and weight applied.
+
+### Section 10: Congressional Activity [MANDATORY]
 
 ```
+## Congressional Activity
+
 | Chamber | Member | Action | Amount | Date |
 |---------|--------|--------|-------:|------|
-| Senate | {rows from getSenateTrades} |
-| House | {rows from getHouseTrades} |
+| Senate | {NAME} | {BUY/SELL} | ${RANGE} | {DATE} |
+| House | {NAME} | {BUY/SELL} | ${RANGE} | {DATE} |
 ```
 
-If both empty: `No congressional trading activity detected.`
+If no trades found: display section header with "No congressional trading activity detected for {SYMBOL}."
 
-### Backtest
+### Section 11: Backtest [MANDATORY]
 
 ```
+## Backtest
+
 | Strategy | Return | Win Rate | Sharpe | Trades |
 |----------|-------:|---------:|-------:|-------:|
 | **{BEST}** | **{RETURN}%** | **{WR}%** | **{SHARPE}** | **{TRADES}** |
-| {2nd} | ... | ... | ... | ... |
-| Buy & Hold | {BH_RETURN}% | | | — |
-| Walk-Forward | {WF_STATUS} | | | |
-| Desktop Cross-Val | {DESKTOP_STATUS} | | | |
+| Buy & Hold | {BH}% | — | — | — |
+| Walk-Forward | {STATUS} | robustness {SCORE} | — | {OOS} OOS |
 ```
 
-**Backtest scoring gates (from rubric, apply in order):**
-1. Trade count gate: <5 trades → cap 2, 5-9 → cap 4, 10-14 → cap 6, 15+ → no cap
-2. Buy-and-hold benchmark (revised): B&H > 100% → penalty WAIVED. B&H > 50% + strategy profitable → -1 only. Strategy loses in rising market → full -2.
-3. Walk-forward: if robustness < 0.3 or OVERFITTED → halve backtest effective weight + flag warning
-4. Adaptive weight: effective backtest weight adjusted per trade count (see rubric). Redistributed weight goes proportionally to other dimensions.
+Below table, always include these lines:
+```
+BACKTEST ADAPTIVE: {N} trades → {X}% weight. {REDISTRIBUTION_NOTE}.
+B&H BENCHMARK: {RETURN}% return. {WAIVER_STATUS}.
+```
 
-### Trade Setup
+### Section 12: Trade Setup [MANDATORY]
 
 ```
+## Trade Setup
+
 | | Price | % from Current |
 |---|------:|---------------:|
-| Entry | ${PRICE} | — |
-| Stop Loss | ${STOP} | {STOP_PCT}% |
-| Take Profit | ${TP} | +{TP_PCT}% |
-| **R:R Ratio** | **{RR}** | |
-| Spread | ${SPREAD} | {SPREAD_LABEL} |
-| Position Size | {SHARES} sh / ${AMOUNT} | {PCT_PORTFOLIO}% of ${EQUITY} |
+| Entry | ${PRICE} | {NOTE} |
+| Stop Loss | ${PRICE} | {PCT}% |
+| Take Profit | ${PRICE} | +{PCT}% |
+| **R:R Ratio** | **{RATIO}:1** | |
+| Spread | ${SPREAD} ({PCT}%) | {LABEL — excellent/acceptable/wide} |
+| Position Size | {SHARES} sh / ${AMOUNT} | {PCT}% of ${EQUITY} |
 ```
 
-### Warnings
+For WAIT signals: Show "Wait Entry" instead of "Entry" with conditions below table.
+For no-position HOLD: Add `**Signal: WAIT** — HOLD + no position = WAIT.`
+
+### Section 13: Warnings [MANDATORY]
 
 ```
+## Warnings
+
 | Severity | Warning | Impact |
 |----------|---------|--------|
-| {ICON} | {WARNING_TEXT} | {SCORE_IMPACT} |
+| {!!!|!!|!} | {WARNING_TEXT} | {SCORE_IMPACT} |
 ```
 
-Severity levels: `!!!` CRITICAL (blocks trade), `!!` WARNING (score penalty), `!` CAUTION (informational).
+Severity: `!!!` = CRITICAL (blocks trade), `!!` = WARNING (score penalty), `!` = CAUTION (informational).
+Minimum: always list at least the top 3 warnings. If no warnings, display "No significant warnings."
 
-### Risks & Catalysts
+### Section 14: Risks & Catalysts [MANDATORY]
 
 ```
+## Risks & Catalysts
+
 | Risks | Catalysts |
 |-------|-----------|
 | {RISK_1} | {CATALYST_1} |
 | {RISK_2} | {CATALYST_2} |
-| ... | ... |
+| {RISK_3} | {CATALYST_3} |
+| {RISK_4} | {CATALYST_4} |
+| {RISK_5} | {CATALYST_5} |
 ```
 
-### Footer
+Minimum 4 rows, maximum 8. Balance risks and catalysts (same count each side).
+
+### Section 15: Override Log [MANDATORY]
 
 ```
-| Corporate | {CORPORATE_ACTIONS} |
+## Override Log
+
+| Override | Status | Detail |
+|----------|--------|--------|
+| O1 Overbought | {APPLIED -N / NOT TRIGGERED} | {RSI value, ADX condition} |
+| O2 VIX Panic | {APPLIED / NOT TRIGGERED} | {VIX value} |
+| O3 Cross-Dim | {APPLIED -N / NOT TRIGGERED} | {Tech vs Fund gap} |
+| O4 R:R Check | {APPLIED / NOT TRIGGERED} | {R:R value} |
+| O5 Extension | {APPLIED -N / NOT TRIGGERED} | {1M%, 3M%, category} |
+| O6 Earnings | {APPLIED +/-N / NOT TRIGGERED} | {EBP or days to earnings} |
+| O7 Sell-News | {APPLIED -5 / NOT TRIGGERED} | {Conditions met/not met} |
+| O8 Multi-Agent | {APPLIED +/-N / NOT TRIGGERED / N/A} | {Net score if available} |
+```
+
+ALL 8 overrides MUST appear. No override may be omitted. This is the audit trail.
+
+### Section 16: Footer & API Manifest [MANDATORY]
+
+```
+| Corporate | {ACTIONS or "No pending corporate actions"} |
 |---|---|
-| Delta | {DELTA_FROM_PREV — score change from last analysis, or "First analysis"} |
-| Sources | FMP, TV-Analysis, Alpaca, WebSearch |
+| Delta | {CHANGE from prior — e.g. "+5 from 45/HOLD → 50/HOLD" or "First analysis"} |
+| Sources | {LIST — FMP, TV-Desktop, TV-Analysis, Alpaca, WebSearch} |
+| Position | **{POSITION_STATUS}** — {TRANSLATION per Fix 3.2} |
+
+## API Call Manifest
+| # | Tool | Status | Notes |
+|---|------|--------|-------|
+| 1 | {TOOL_NAME} | {OK/FAIL/PARTIAL/INVALID} | {BRIEF_NOTE} |
+| ... | | | |
+Data Completeness: {SUCCESS}/{TOTAL} = {PCT}%
 ```
 
-**Rendering notes:**
-- Bar chars: use `█` for filled, `░` for empty (10 chars total per dimension)
-- {TRACK_LABEL}: "Track A: DCF" or "Track B: PEG" (or "Track B: PSG" if negative earnings)
-- 13F quarter: ALWAYS use most recent COMPLETE quarter (45-day filing lag). Partial quarters mislead.
-- Key Driver column: keeps the score table self-contained — reader doesn't need to scroll to understand each score
-- All numbers right-aligned in tables for readability
+---
+
+## Section Checklist (verify before displaying)
+
+Before displaying the Compact Card, verify:
+- [ ] All 16 section headers present
+- [ ] Scores table has exactly 8 dimension rows + composite row
+- [ ] Override Log has exactly 8 override rows (O1-O8)
+- [ ] Options Flow has all 8 metric rows (or explicit N/A)
+- [ ] Insider table has 10b5-1 column populated for every insider
+- [ ] Institutional table has Staleness row
+- [ ] API Manifest lists every tool call made
+- [ ] Trade Setup matches signal (WAIT for HOLD+no position, entry for BUY)
 
 ---
 
 ## Crypto Compact Card
 
-Same structure but omit: Fund, Val, Macro rows. Show crypto-specific Smart Money (exchange volume, whale activity).
+Same 16-section structure but:
+- Omit: Fundamental, Valuation, Macro dimension rows from Scores table
+- Omit: Sections 8-10 (Insider, Institutional, Congressional)
+- Add crypto-specific: exchange volume, whale activity, funding rate
 
 ---
 
@@ -270,43 +355,6 @@ Recent Activity: {LAST_5_FILLS}
 
 ---
 
-## Morning Brief (for /morning-brief)
-
-```
-=== Morning Brief === {DATE} ===
-{MARKET_HOURS_HEADER}
-
-MARKET OVERVIEW
-{MARKET_SNAPSHOT_DATA}
-VIX: {VIX} ({VIX_LABEL}) | 10Y: {YIELD}%
-
-PORTFOLIO ({POSITION_COUNT} positions)
-Today: {DAY_PL} | Alerts: {ALERT_COUNT}
-{TOP_MOVERS_IN_PORTFOLIO}
-
-WATCHLIST MOVERS (>3% change)
-{MOVERS_WITH_AH_PRICES}
-
-SCANNERS
-Top Gainers: {TOP_3}
-Volume Breakouts: {TOP_3}
-Bollinger Squeezes: {TOP_3}
-
-EARNINGS THIS WEEK
-{EARNINGS_LIST_WITH_EXPECTED_MOVE}
-
-CORPORATE ACTIONS
-{SPLITS_DIVIDENDS_MERGERS}
-
-NEWS HIGHLIGHTS
-{TOP_5_NEWS}
-
-TRADE IDEAS
-{TOP_2_SETUPS_WITH_REASONING}
-```
-
----
-
 ## Compare Output (for /compare)
 
 ```
@@ -323,15 +371,3 @@ TRADE IDEAS
 
 Verdict: {RECOMMENDATION_WITH_REASONING}
 ```
-
----
-
-## Full Mode (--full flag)
-
-Complete 16-phase detailed report with:
-- All data tables from each phase
-- Raw indicator values
-- Full options chain analysis
-- Complete news NLP breakdown
-- Detailed scoring justification per dimension
-- Chart screenshot (if Desktop available)
