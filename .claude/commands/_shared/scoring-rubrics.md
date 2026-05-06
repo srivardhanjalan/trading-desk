@@ -51,6 +51,29 @@ When ADX > 35 with strong directional bias, RSI overbought indicates trend accel
 - Price change > +3% AND volume > 1.5x average: Technical +1. "ACCUMULATION: {volume_ratio}x volume on {change}% day."
 - Price change < -5% AND volume > 2.0x average: Technical -2. "SEVERE DISTRIBUTION."
 
+**FMP Technical Cross-Validation (Always-On):**
+FMP technical indicators (getRSI, getSMA, getEMA, getADX) are ALWAYS fetched alongside TradingView data — not just as fallback. Cross-validate:
+- If TV RSI and FMP RSI diverge by >10 points: flag "RSI DATA DIVERGENCE: TV={X}, FMP={Y}. Using average." Use the average for scoring.
+- If TV and FMP agree within 5 points: high confidence. Note the confirmation.
+- FMP provides DEMA, TEMA, WMA, Williams %R as additional confirmation signals (see below).
+
+**Additional Technical Indicators (from FMP):**
+- DEMA (Double EMA): faster trend detection than SMA/EMA. DEMA crossover above price = bullish confirmation.
+- TEMA (Triple EMA): even more responsive. TEMA divergence from price = early momentum shift warning.
+- WMA (Weighted MA): emphasizes recent price action. WMA slope direction confirms trend.
+- Williams %R: overbought/oversold oscillator. Williams < -80 = oversold (bullish), > -20 = overbought (bearish). Confirms RSI when both agree. When Williams and RSI disagree, flag "OSCILLATOR DIVERGENCE" and use the more conservative reading.
+
+**Regime Detection (ADX-Based):**
+Classify market regime BEFORE interpreting technical indicators:
+- Use 60-day ADX average (from FMP getADX with longer lookback):
+  - ADX avg > 25: TRENDING regime — suppress mean-reversion signals (RSI overbought is less penalizing, Bollinger band touches are trend continuation)
+  - ADX avg 18-25: TRANSITIONAL regime — standard interpretation
+  - ADX avg < 18: MEAN-REVERTING regime — amplify mean-reversion signals (RSI overbought = exhaustion, Bollinger touches = reversal)
+- Cross-reference with Bollinger Band Width percentile (from bollinger_scan):
+  - Width at 6-month minimum = compression before breakout. In trending regime: breakout likely continues trend. In mean-reverting: breakout may fail.
+- Log: "REGIME: {TRENDING/TRANSITIONAL/MEAN-REVERTING} (ADX avg {X}, BB width {percentile}%ile)."
+- Regime affects Override 1 interpretation: in TRENDING regime, reduce RSI overbought penalty by additional 0.3x multiplier.
+
 ---
 
 ## Fundamental Score (1-10)
@@ -74,6 +97,26 @@ If stock-based compensation (SBC) > 10% of revenue, compute GAAP-equivalent oper
 - Beats 7-8 of last 8 quarters: +1
 - Misses 5+ of last 8 quarters: -1
 - Large surprise magnitude (>10% beat/miss): additional +/-0.5
+
+**Economic Moat Assessment Modifier:**
+Computed from data in `{SYMBOL}_fundamental.md` "Economic Moat" section:
+- **Margin premium vs peers:** If operating margin > 1.5x sector median: +1 (pricing power).
+- **Revenue concentration:** If top customer >30% revenue OR top 3 >60%: -1 (concentration risk).
+- **Recurring revenue proxy:** If subscription/recurring revenue >60% of total: +1 (predictability).
+- **Capital allocation quality:** FCF yield >5% AND buyback yield >2% AND dividend coverage >2x: +1. Negative FCF + rising debt: -1.
+- Net moat modifier range: [-2, +2]. Apply AFTER base Fundamental score. Cap Fundamental at 10.
+- Note: "MOAT: {WIDE/NARROW/NONE} (margin premium {X}x, revenue concentration {Y}%, recurring {Z}%, capital alloc {quality}). Modifier: {+/-N}."
+
+**Financial Statement Forensics Modifier:**
+Computed from data in `{SYMBOL}_fundamental.md` "Financial Statement Forensics" section:
+- **Beneish M-Score > -1.78:** Fundamental -2. "FORENSICS WARNING: Beneish M-Score {X} indicates elevated earnings manipulation risk."
+- **Beneish M-Score -1.78 to -2.22:** Fundamental -1. "FORENSICS CAUTION: Beneish M-Score {X} in grey zone."
+- **Beneish M-Score < -2.22:** No penalty. Clean signal.
+- **Accruals ratio > 10%:** Additional -1. "HIGH ACCRUALS: {X}% — earnings quality concern."
+- **Receivables/Revenue ratio increasing >5pp YoY:** Additional -0.5. "RECEIVABLES GROWING: may indicate channel stuffing."
+- **Inventory/Revenue ratio increasing >5pp YoY:** Additional -0.5. "INVENTORY BUILDING: may indicate demand softening."
+- Net forensics modifier range: [-3, 0]. This is always non-positive (forensics can only flag problems, not confirm quality).
+- If forensics data is unavailable (pre-revenue company, REIT, etc.): skip modifier. Note: "FORENSICS N/A: {reason}."
 
 ---
 
@@ -152,6 +195,19 @@ When EPS PEG < 1.0 AND Revenue PEG > 2.0, compute DIVERGENCE_RATIO = Revenue_PEG
 - P/S 35-50x: cap divergence adjustment at +1
 - P/S > 50x: cap divergence adjustment at +0
 
+**Bear-Case DCF Stress Test:**
+From `{SYMBOL}_fundamental.md` "Stress Test & Implied Value" section:
+- Bear-case DCF uses 50% of consensus growth rate and industry-average margins.
+- **Margin of safety** = (avg_DCF - current_price) / avg_DCF × 100. Where avg_DCF = average of standard, levered, and custom DCF (excluding invalids).
+  - Margin of safety > 30%: Valuation +1. "MARGIN OF SAFETY: {X}% — significant undervaluation."
+  - Margin of safety 10-30%: No modifier. "MARGIN OF SAFETY: {X}% — moderate."
+  - Margin of safety < 0% (overvalued): Valuation -1. "NEGATIVE MARGIN OF SAFETY: {X}% — price exceeds intrinsic value."
+  - Bear-case still shows upside: Valuation +1 additional. "BEAR-CASE UPSIDE: Even under stress, DCF > price."
+- **Implied growth rate** = reverse-engineered growth rate that justifies current price. Compare to consensus:
+  - Implied growth > 2x consensus growth: Valuation -1. "PRICED FOR PERFECTION: Market implies {X}% growth vs {Y}% consensus."
+  - Implied growth < 0.5x consensus growth: Valuation +1. "GROWTH DISCOUNT: Market implies only {X}% growth vs {Y}% consensus."
+- **TAM analysis (Track B only):** From fundamental report TAM section. If current revenue < 5% of addressable market: note "TAM RUNWAY: {X}% penetration — long runway supports growth premium."
+
 ---
 
 ## Sentiment Score (1-10)
@@ -179,6 +235,26 @@ Weighted sentiment = sum(platform_score x weight). Bullish > +0.3, bearish < -0.
 **Divergence cap:** If platforms disagree strongly, cap Sentiment at 5 and note "SENTIMENT DIVERGENCE."
 
 **Fallback:** If WebSearch returns unusable results for Twitter/StockTwits, redistribute weight to Reddit + News NLP.
+
+**Consensus Crowding Indicator:**
+When >80% of all sentiment sources (Reddit + Twitter + StockTwits + analyst consensus) agree on direction:
+- >80% bullish: Sentiment cap at 7. "CONSENSUS CROWDING: {X}% bullish. Contrarian risk — crowded trades unwind violently."
+- >80% bearish: Sentiment floor at 4. "CONSENSUS CROWDING: {X}% bearish. Contrarian signal — extreme pessimism may be overdone."
+- This is a CONTRARIAN signal: unanimous agreement often precedes reversals.
+- Exception: if the stock has strong fundamental momentum (Fundamental >= 8 AND earnings beat 7+/8), suppress the bullish crowding cap. Real quality sometimes deserves consensus.
+
+**Market-Cap-Scaled Sentiment Weights:**
+Adjust platform weights based on market cap to reflect information efficiency:
+
+| Platform | Large Cap (>$50B) | Mid Cap ($5-50B) | Small Cap (<$5B) |
+|----------|:--:|:--:|:--:|
+| Reddit | 0.15 | 0.30 | 0.35 |
+| Twitter/X | 0.05 | 0.10 | 0.10 |
+| StockTwits | 0.05 | 0.10 | 0.15 |
+| News NLP | 0.40 | 0.30 | 0.25 |
+| Analyst events | 0.35 | 0.20 | 0.15 |
+
+Rationale: Large-cap stocks have more institutional coverage and better news flow; social media adds noise. Small-cap stocks have sparse analyst coverage; social media and retail sentiment are more informative.
 
 ---
 
@@ -223,6 +299,19 @@ Weighted sentiment = sum(platform_score x weight). Bullish > +0.3, bearish < -0.
 - Data age 91-120 days: 0.5x weight
 - Data age > 120 days: 0.3x weight (note "STALE 13F — {N} days old")
 
+**Fund Quality Weighting:**
+Not all institutional accumulation is equal. Cross-reference fund performance:
+- If top-alpha funds (e.g., funds with 3Y+ track record of >15% CAGR) are accumulating: Smart Money +1. "FUND QUALITY: Top-performing funds adding shares."
+- If primarily index funds / passive ETFs accumulating: no modifier (forced buying, not conviction).
+- If activist funds taking >5% stake (from 13F or WebSearch): Smart Money +2, floor at 7. "ACTIVIST INVOLVEMENT: {fund name} acquired {X}% stake."
+- Data source: `getFilingExtractAnalyticsByHolder` + `getHolderPerformanceSummary` from fundamental report.
+
+**Dark Pool Activity Proxy:**
+From `{SYMBOL}_sentiment.md` "Dark Pool & Alternative Data" section:
+- If FINRA ATS data shows unusual dark pool volume (>2x 20-day average): Smart Money +1. "DARK POOL ACTIVITY: {X}x normal ATS volume — possible institutional accumulation."
+- If dark pool volume declining while public volume rising: Smart Money -1. "DARK POOL EXIT: Institutions moving to lit exchanges — possible distribution."
+- If dark pool data unavailable: no modifier. Note: "DARK POOL: N/A."
+
 ---
 
 ## Macro Score (1-10)
@@ -258,6 +347,27 @@ Weighted sentiment = sum(platform_score x weight). Bullish > +0.3, bearish < -0.
 - CPI release within 3 trading days + beta > 1.5: Macro -1
 - Two or more major events in same week: Macro -2
 - Note: "MACRO EVENT: {event} on {date}. Volatility amplified."
+
+**Global Macro Indicators (from fundamental report):**
+Incorporate commodities, currency, and economic data from `{SYMBOL}_fundamental.md`:
+- **Copper/Gold ratio** (from getCommodityQuotes): Rising = reflation (bullish cyclicals). Falling = deflation fear (bearish cyclicals, bullish gold miners).
+- **Oil price** (from getCommodityQuotes): >$90/bbl = energy sector +1, consumer discretionary -1. <$50/bbl = energy -1, consumer +1.
+- **DXY / USD strength** (from getForexQuote USDX): Rising DXY = headwind for multinationals (international revenue >40%: Macro -1). Falling DXY = tailwind for multinationals (+1).
+- **GDP growth** (from getEconomicIndicators): <1% = recession risk, Macro -1 for all cyclicals. >3% = expansion, Macro +1 for cyclicals.
+- **CPI trend** (from getEconomicIndicators): Accelerating inflation = Macro -1 for growth stocks (rate hike risk). Decelerating = +1 for growth.
+- **COT data** (from getCOTAnalysis): If commercial hedgers net long in sector-related commodity = bullish signal for sector. If net short = bearish.
+
+**Macro Regime Classification:**
+Combine GDP + CPI trends into regime quadrants:
+
+| GDP ↑ / CPI ↓ | GDP ↑ / CPI ↑ | GDP ↓ / CPI ↑ | GDP ↓ / CPI ↓ |
+|:--:|:--:|:--:|:--:|
+| **GOLDILOCKS** | **REFLATION** | **STAGFLATION** | **DEFLATION** |
+| Growth + Tech +1 | Commodities + Banks +1 | Energy + Utilities +1 | Bonds + Defensive +1 |
+| Macro base 7-8 | Macro base 6-7 | Macro base 3-4 | Macro base 4-5 |
+
+- Log: "MACRO REGIME: {GOLDILOCKS/REFLATION/STAGFLATION/DEFLATION}. GDP trend: {X}%, CPI trend: {Y}%."
+- Regime provides the BASE Macro score; sector ETF performance and per-stock multipliers then adjust from there.
 
 ---
 
@@ -299,6 +409,16 @@ Walk-forward override: If walk_forward_robustness < 0.3 (OVERFITTED), HALVE the 
 Redistribution is proportional to remaining dimension weights.
 
 **Desktop cross-validation:** If TV-Analysis and Desktop Strategy Tester diverge by >20%, cap at 5 + flag "OVERFIT WARNING."
+
+**Statistical Significance Test (t-test):**
+For backtests with >= 10 trades, compute:
+- Mean return per trade (μ) and standard deviation (σ)
+- t-statistic = μ / (σ / √n), where n = number of trades
+- **t > 2.0 (p < 0.05):** Results are statistically significant. Full Backtest score applies. "BACKTEST SIGNIFICANCE: t={X}, p<0.05. Results reliable."
+- **t 1.5-2.0:** Marginal significance. Cap Backtest at 7. "BACKTEST MARGINAL: t={X}. Results suggestive but not conclusive."
+- **t < 1.5:** Not significant. Cap Backtest at 5. "BACKTEST INSIGNIFICANT: t={X}. Results may be due to chance."
+- For < 10 trades: t-test not applicable. Use trade count gate instead.
+- Note: This test prevents high scores from a few lucky trades. A strategy with 80% win rate on 5 trades is less convincing than 55% on 50 trades.
 
 ---
 
@@ -555,3 +675,38 @@ When the user holds a position (from `get_open_position`), translate signals:
 | HOLD | WAIT | MAINTAIN |
 | SELL | AVOID | REDUCE/EXIT |
 | STRONG SELL | AVOID | EXIT IMMEDIATELY |
+
+---
+
+## Scoring Calibration & Forward Return Tracking
+
+**Purpose:** Enable continuous improvement of the scoring system by tracking how well scores predict actual forward returns.
+
+**Forward Return Columns (in scores.csv):**
+The following columns are populated by `price_at_scoring` at analysis time. Forward returns should be computed in future analyses when re-analyzing the same stock:
+- `price_at_scoring`: price when composite was computed
+- `fwd_1w_return`: % return 5 trading days after scoring
+- `fwd_1m_return`: % return 21 trading days after scoring
+- `fwd_3m_return`: % return 63 trading days after scoring
+
+**Information Coefficient (IC) Tracking:**
+When sufficient data exists (>20 scored stocks with forward returns), compute:
+- IC = rank_correlation(composite_score, fwd_1m_return) — Spearman rank correlation
+- IC > 0.10: Scoring system has predictive power. "CALIBRATION: IC={X}. Scores are predictive."
+- IC 0.05-0.10: Marginal. "CALIBRATION: IC={X}. Marginal predictive power."
+- IC < 0.05: Not predictive. "CALIBRATION WARNING: IC={X}. Scoring system needs recalibration."
+
+**Per-Dimension IC:**
+Compute IC for each dimension individually to identify which dimensions are actually predictive:
+- If a dimension's IC < 0: that dimension is ANTI-predictive. Consider reducing its weight.
+- If a dimension's IC > 0.15: that dimension is highly predictive. Consider increasing its weight.
+- Log: "DIMENSION IC: Tech={X}, Fund={X}, Val={X}, Sent={X}, SM={X}, Macro={X}, BT={X}, Risk={X}."
+
+**Signal Accuracy Tracking:**
+For each signal (STRONG BUY, BUY, HOLD, SELL, STRONG SELL), track:
+- What % of STRONG BUY signals had positive 1M returns?
+- What % of SELL signals had negative 1M returns?
+- This reveals systematic bias (e.g., if SELL signals are frequently wrong, the system is too bearish).
+
+**Staleness Rule:**
+Scores older than 3 calendar days OR with >5% price movement from `price_at_scoring` are STALE. When referencing prior scores in a new analysis, flag stale scores: "PRIOR SCORE STALE: {N} days old, price moved {X}%."

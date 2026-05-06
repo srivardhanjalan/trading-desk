@@ -11,7 +11,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 
 ## Phase 2: Macro & Sector Context
 
-**9 calls, all cacheable per session (parallel):**
+**15 calls, all cacheable per session (parallel):**
 - Call `mcp__financial-modeling-prep__getTreasuryRates` — extract 2Y, 5Y, 10Y, 30Y yields. Check yield curve shape (2Y > 10Y = inverted = recession signal).
 - Call `mcp__financial-modeling-prep__getStockPriceChange` with the sector ETF symbol based on the stock's sector:
   - Technology → XLK, Semiconductors → SMH, Financials → XLF, Energy → XLE, Healthcare → XLV, Consumer Discretionary → XLY, Industrials → XLI, Real Estate → XLRE, Utilities → XLU, Materials → XLB, Comm Services → XLC, Consumer Staples → XLP
@@ -24,6 +24,12 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - Call `mcp__financial-modeling-prep__getIndustryPESnapshot` with industry={stock's industry}, date={today YYYY-MM-DD} — current industry P/E. **Contextualizes valuation:** A P/E of 135 in a sector averaging 80 is very different from P/E 135 in a sector averaging 20.
 - Call `mcp__financial-modeling-prep__getEconomicCalendar` with from={today}, to={today + 14 days} — upcoming CPI, FOMC, jobs data. **If major macro event coincides with earnings week, volatility amplifies.** Flag: "MACRO EVENT: {event} on {date} during earnings week."
 - Call `mcp__financial-modeling-prep__getESGRatings` with symbol=$ARGUMENTS — ESG score (environmental, social, governance). Flags regulatory/reputational risk for Risk scoring. Companies with poor ESG increasingly face institutional divestment pressure.
+- Call `mcp__financial-modeling-prep__getCommodityQuotes` — real-time commodity prices (oil, gold, copper, natural gas). **Copper is the "doctor" — down >10% in 3 months signals recession for cyclicals.** Oil up >20% in 3M = headwind for transport/consumer, tailwind for energy. Gold up >15% in 3M = flight to safety (bearish for risk assets with beta >1.5).
+- Call `mcp__financial-modeling-prep__getForexQuote` with symbol="USDX" — US Dollar Index. **DXY up >5% in 3 months = earnings headwind for international revenue companies.** Down >5% = tailwind. Cross-reference with geographic revenue segmentation from Phase 7.
+- Call `mcp__financial-modeling-prep__getEconomicIndicators` — GDP growth, CPI, unemployment rate, manufacturing PMI. **GDP declining 2+ consecutive quarters = recession warning for cyclicals.** CPI accelerating while rates rising = stagflation risk for long-duration growth stocks.
+- Call `mcp__financial-modeling-prep__getCOTAnalysis` — Commitment of Traders data for relevant sector commodities. **Commercial hedgers heavily net long = potential bottom signal.** Speculator positioning >90th percentile long = crowded trade reversal risk.
+- Call `mcp__financial-modeling-prep__getCOTReports` — historical COT positioning trends. Confirms or refutes current COT signal with trajectory context.
+- Call `mcp__financial-modeling-prep__getHistoricalSectorPE` with sector={stock's sector} — sector P/E history (complement to industry P/E). Shows whether the entire sector is cheap or expensive vs history.
 
 **If sector ETF data returns 402:** Use `getSectorPerformanceSnapshot` as primary sector signal. If BOTH fail, cap Macro at 6 per scoring rubrics.
 
@@ -34,12 +40,12 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 **22 FMP calls, parallel:**
 - `mcp__financial-modeling-prep__getFinancialRatiosTTM` — P/E, P/B, EV/EBITDA, margins (gross, operating, net), current ratio, debt/equity, dividend yield, FCF ratios
 - `mcp__financial-modeling-prep__getKeyMetricsTTM` — ROE, ROIC, EV/Sales, EV/OCF, netDebt/EBITDA, cash conversion cycle, R&D/revenue, income quality, Graham number (26 unique fields)
-- `mcp__financial-modeling-prep__getIncomeStatement` with period="FY", limit=2 — absolute revenue ($), net income, EPS, R&D, SGA, **SBC (stock-based compensation)**. Needed for valuation, SBC margin adjustment, and reporting.
+- `mcp__financial-modeling-prep__getIncomeStatement` with period="FY", limit=5 — absolute revenue ($), net income, EPS, R&D, SGA, **SBC (stock-based compensation)**. Extended to 5 years for moat assessment (margin stability), capital allocation analysis (shares outstanding trajectory), and financial statement forensics (receivables/revenue growth trending).
 - `mcp__financial-modeling-prep__getIncomeStatementTTM` — trailing twelve months: more current than FY data. Use for run-rate estimates. When most recent quarter shows acceleration, TTM better reflects current earnings power.
 - `mcp__financial-modeling-prep__getIncomeStatementGrowth` with period="quarter", limit=4 — QoQ revenue/EPS growth rates. **Growth ACCELERATION is the #1 earnings prediction signal.** If revenue growth is increasing each quarter, the stock is more likely to beat. Decelerating growth = sell-the-news risk.
 - `mcp__financial-modeling-prep__getFinancialStatementGrowth` with period="FY", limit=2 — pre-calculated YoY growth rates + 3Y/5Y/10Y compounded rates
 - `mcp__financial-modeling-prep__getCashFlowStatementGrowth` with period="quarter", limit=4 — FCF growth trajectory. **Decelerating FCF growth despite revenue growth = margin pressure warning.** Critical for catching PLTR-style sell-the-news setups.
-- `mcp__financial-modeling-prep__getBalanceSheetStatement` with period="FY", limit=1 — cash, total debt, goodwill, inventory, receivables, working capital, total equity
+- `mcp__financial-modeling-prep__getBalanceSheetStatement` with period="FY", limit=5 — cash, total debt, goodwill, inventory, receivables, working capital, total equity. Extended to 5 years for forensics (inventory build, receivables accumulation), capital allocation (buyback/dilution via shares outstanding), and Beneish M-Score computation.
 - `mcp__financial-modeling-prep__getBalanceSheetStatementTTM` — trailing balance sheet for most current snapshot of cash/debt position
 - `mcp__financial-modeling-prep__getCashFlowStatement` with period="FY", limit=1 — operating CF, capex, FCF, D&A. **Derive owner earnings:** net income + D&A - capex
 - `mcp__financial-modeling-prep__getFinancialScores` — Altman Z-Score (bankruptcy risk: >3 safe, 1.8-3 grey, <1.8 distress) + Piotroski F-Score (financial strength: 0-9, higher better)
@@ -59,6 +65,19 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - `mcp__financial-modeling-prep__getFundHoldings` — top holdings and weights
 - `mcp__financial-modeling-prep__getFundSectorWeighting` — sector allocation
 - `mcp__financial-modeling-prep__getFundInfo` — expense ratio, AUM, inception date, strategy
+
+### Derived Forensics (computed from Phase 7 data, no additional calls)
+
+From the 5-year income statement and balance sheet data, compute:
+- **Receivables/Revenue growth ratio:** (receivables_current / receivables_prior) / (revenue_current / revenue_prior). If > 1.5 for 2+ consecutive years: flag "REVENUE QUALITY WARNING."
+- **Inventory/Revenue growth ratio:** Same formula with inventory. If > 1.5 for 2+ years: flag "INVENTORY BUILD WARNING."
+- **Accruals ratio:** (net_income - operating_cash_flow) / total_assets. If positive and rising over 2+ years: flag "EARNINGS QUALITY WARNING."
+- **Beneish M-Score simplified:** If accruals > 0.05 AND receivables ratio > 1.3 AND gross margin declining while revenue grows: flag "MANIPULATION RISK."
+- **Capital allocation quality:** Track shares outstanding from balance sheet over 5 years. Compute 3-year buyback yield (shares reduced / avg shares). Rising shares = dilution (-1 Fundamental). Falling shares = buybacks (+1 Fundamental, unless done above intrinsic value).
+- **Moat indicators:**
+  - Gross margin premium vs. peers (from Phase 8 data) sustained 3+ years = pricing power
+  - Revenue concentration from getRevenueProductSegmentation: top segment >70% = fragile
+  - Recurring revenue proxy: GM >70% AND expanding AND growth >20% = platform economics
 
 ---
 
@@ -83,7 +102,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 
 ## Phase 9: Valuation & Analyst Targets
 
-### Step 1 — Valuation models (5 calls, parallel)
+### Step 1 — Valuation models (6 calls, parallel)
 
 - `mcp__financial-modeling-prep__getDCFValuation` with symbol=$ARGUMENTS — standard (unlevered) DCF intrinsic value
 - `mcp__financial-modeling-prep__getLeveredDCFValuation` with symbol=$ARGUMENTS — levered DCF (accounts for debt). For leveraged companies, can differ 20-40% from unlevered. Together they create a valuation range.
@@ -96,6 +115,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
   - **taxRate** = from Phase 7 `getIncomeStatement` (incomeTaxExpense / incomeBeforeTax)
   - Remaining 12 of 18 parameters use FMP defaults (reasonable for most stocks)
 - `mcp__financial-modeling-prep__calculateCustomLeveredDCF` with symbol=$ARGUMENTS — custom levered DCF using same inputs as custom unlevered. Provides debt-adjusted custom valuation. Compare against standard `getLeveredDCFValuation` to assess custom model sensitivity.
+- `mcp__financial-modeling-prep__calculateCustomDCF` (BEAR CASE) with symbol=$ARGUMENTS — **second custom DCF call** with revenue growth at 50% of actual and margins compressed. Uses same framework but stress-tests assumptions. Report: "Bear-case DCF: ${X}."
 - `mcp__financial-modeling-prep__getMarketRiskPremium` — equity risk premium. **Cache per session.**
 
 **DCF usage in scoring (from `_shared/scoring-rubrics.md`):**
@@ -104,6 +124,24 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - Always report all 3: "DCF range: $X (standard) / $Y (levered) / $Z (custom)"
 
 **Growth detection:** Revenue growth >20% YoY (from Phase 7) OR P/E >40 → Track B.
+
+### Derived Valuation Analysis (computed, no additional calls)
+
+**Margin of Safety:** 
+- Compute: margin_of_safety = (avg_DCF - price) / avg_DCF × 100, where avg_DCF = average of valid standard and levered DCF.
+- Report: "Margin of Safety: {X}%."
+
+**Implied Growth Rate:**
+- Reverse-engineer the DCF: given current price, what growth rate is required to justify it?
+- Method: implied_growth = actual_growth × (current_price / custom_DCF_value).
+- Report: "Implied Growth: {X}% (market requires this vs actual {Y}%)."
+- If implied > 2x actual: "PRICED FOR PERFECTION." If implied < 0.5x actual: "GROWTH DISCOUNT."
+
+**TAM Analysis (Track B stocks only):**
+- For Track B stocks (revenue growth >20% OR P/E >40), add WebSearch: "{COMPANY_NAME} total addressable market TAM."
+- Compute penetration_rate = annual_revenue / TAM_estimate.
+- Report: "TAM: ${X}B | Penetration: {Y}% | Runway: {early(<10%)/mid(10-40%)/late(>40%)}."
+- If penetration < 10% AND revenue growth > 30%: Valuation +1 (massive runway).
 
 ### Step 2 — Analyst sentiment (11 calls, parallel)
 
@@ -135,6 +173,11 @@ Write all collected data to `reports/{SYMBOL}_fundamental.md` with this structur
 - Yield Curve: {normal/flat/inverted}
 - VIX: X ({calm/normal/elevated/fear/PANIC})
 - Sector ETF ({XLK}): 1D X% | 1M X% | 3M X% | 1Y X%
+- Commodities: Oil ${X} ({change}%) | Copper ${X} ({change}%) | Gold ${X} ({change}%)
+- DXY: {X} ({change}% 3M)
+- GDP Growth: {X}% | CPI: {X}% | Unemployment: {X}%
+- COT Signal: {commercial/speculator positioning for relevant commodity}
+- Macro Regime: {REFLATION/GOLDILOCKS/STAGFLATION/DEFLATION}
 
 ## Financial Health
 - Piotroski F-Score: X/9
@@ -158,6 +201,19 @@ Write all collected data to `reports/{SYMBOL}_fundamental.md` with this structur
 - Company Notes: {off-balance-sheet items, contingent liabilities, or "None"}
 - Key Disclosures: {material footnotes from getCompanyNotes, or "None"}
 
+## Financial Statement Forensics
+- Receivables/Revenue Ratio: {X}x ({OK/WARNING})
+- Inventory/Revenue Ratio: {X}x ({OK/WARNING})
+- Accruals Ratio: {X} ({OK/WARNING})
+- Beneish M-Score: {PASS/FAIL}
+- Capital Allocation: {buybacks/neutral/dilutive} — shares {+/-X}% over 3 years
+
+## Economic Moat
+- Gross Margin Premium: {X}pp above peer median ({strong/weak/none})
+- Revenue Concentration: top segment {X}% ({diversified/concentrated})
+- Recurring Revenue Proxy: {yes/no — GM%, expanding, growth rate}
+- Moat Rating: {WIDE/NARROW/NONE}
+
 ## Market Cap Trajectory
 - Q-4: $X → Q-3: $X → Q-2: $X → Q-1: $X → Now: $X
 - Trend: {expanding/contracting/stable}
@@ -178,6 +234,12 @@ Write all collected data to `reports/{SYMBOL}_fundamental.md` with this structur
 - PEG Ratio: X (if Track B)
 - Analyst Consensus: $X ({X% upside}) from X analysts (s=$X)
 - Analyst High/Low: $X / $X
+
+## Stress Test & Implied Value
+- Bear-Case DCF: ${X} ({Y}% vs price)
+- Margin of Safety: {X}%
+- Implied Growth: {X}% (actual: {Y}%)
+- TAM: ${X}B | Penetration: {Y}% (Track B only)
 
 ## Analyst Activity
 - Recent grades: {upgrade/downgrade events}

@@ -1,6 +1,6 @@
 # Analysis Pipeline — Master Checklist
 
-Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP servers + WebSearch/WebFetch.
+Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP servers + WebSearch/WebFetch.
 
 ---
 
@@ -22,17 +22,38 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `Alpaca: get_stock_snapshot` — bid/ask prices/sizes, compute spread %
 - [ ] **Asset classification:** Stock / Crypto / ETF / ADR / OTC (determines routing for all later phases)
 
-### Phase 3: Multi-Timeframe Technicals (2 parallel calls + FMP fallback)
+### Phase 3: Multi-Timeframe Technicals (2 TV-Analysis + 9 FMP always-on + 3 market context)
 - [ ] `TV-Analysis: multi_timeframe_analysis` — Weekly/Daily/4H/1H/15m alignment
 - [ ] `TV-Analysis: coin_analysis` (timeframe=1D) — RSI, MACD, Stochastic, ADX, Bollinger, SMAs/EMAs, support/resistance
 - [ ] **Record:** RSI value, ADX value, +DI/-DI ratio (needed for overrides)
-- [ ] **FMP Fallback (if both TV-Analysis calls fail — OTC stocks):** `getRSI`, `getSMA`(50), `getSMA`(200), `getEMA`(20), `getADX` — 5 parallel FMP calls. Apply -1 data gap penalty.
 
-### Phase 4: Volume & Float (4 parallel calls)
+**FMP Technical Indicators (ALWAYS-ON — 5 core + 4 extended, parallel):**
+- [ ] `FMP: getRSI` (14, 1day, 60d) — cross-validate with TV RSI
+- [ ] `FMP: getSMA` (50, 1day, 60d) — cross-validate with TV SMA50
+- [ ] `FMP: getSMA` (200, 1day, 300d) — cross-validate with TV SMA200
+- [ ] `FMP: getEMA` (20, 1day, 60d) — Bollinger midline proxy
+- [ ] `FMP: getADX` (14, 1day, 60d) — ADX + regime detection (60-day average)
+- [ ] `FMP: getDEMA` (20, 1day, 60d) — Double EMA, faster trend detection
+- [ ] `FMP: getTEMA` (20, 1day, 60d) — Triple EMA, early momentum shift warning
+- [ ] `FMP: getWMA` (20, 1day, 60d) — Weighted MA, slope confirms trend
+- [ ] `FMP: getWilliams` (14, 1day, 60d) — Williams %R, confirms RSI
+- [ ] **Cross-validation:** RSI divergence >10pts = flag + average. SMA >3% = flag data quality.
+- [ ] **Regime detection:** ADX avg >25 = TRENDING, 18-25 = TRANSITIONAL, <18 = MEAN-REVERTING
+
+**Market Context (3 parallel):**
+- [ ] `TV-Analysis: market_snapshot` — broad market direction, sector performance
+- [ ] `TV-Analysis: top_gainers` — daily leaders (check if symbol is top gainer)
+- [ ] `TV-Analysis: top_losers` — daily laggards (check if symbol is top loser)
+- [ ] **Relative strength:** Compare stock 1D% vs market snapshot direction
+
+**FMP-only fallback (if BOTH TV-Analysis calls fail — OTC stocks):** FMP data becomes PRIMARY. Apply -1 data gap penalty.
+
+### Phase 4: Volume & Float (5 parallel calls)
 - [ ] `FMP: getShareFloat` — float size, short interest %, short ratio
 - [ ] `TV-Analysis: smart_volume_scanner` — unusual volume (POST-FILTER for symbol)
 - [ ] `TV-Analysis: volume_confirmation_analysis` — volume-confirmed advance/decline
 - [ ] `TV-Analysis: consecutive_candles_scan` — consecutive candle count (POST-FILTER for symbol)
+- [ ] `TV-Analysis: volume_breakout_scanner` — volume breakouts (POST-FILTER for symbol)
 
 ### Phase 5: Candle Patterns & Bollinger (2 parallel calls)
 - [ ] `TV-Analysis: advanced_candle_pattern` — active patterns (POST-FILTER for symbol)
@@ -54,7 +75,7 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 
 ## PHASE GROUP 2: FUNDAMENTAL (Phases 2, 7, 8, 9)
 
-### Phase 2: Macro & Sector Context (9 parallel calls, all cacheable)
+### Phase 2: Macro & Sector Context (15 parallel calls, all cacheable)
 - [ ] `FMP: getTreasuryRates` — 2Y, 5Y, 10Y, 30Y yields; yield curve shape
 - [ ] `FMP: getStockPriceChange` with sector ETF — sector momentum (use sector→ETF mapping)
 - [ ] `FMP: getIndexQuote` (^VIX) — fear gauge (<15 calm, 15-20 normal, 20-25 elevated, 25-30 fear, >30 PANIC)
@@ -64,16 +85,23 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `FMP: getIndustryPESnapshot` — current industry P/E
 - [ ] `FMP: getEconomicCalendar` (next 14 days) — FOMC, CPI, jobs data
 - [ ] `FMP: getESGRatings` — ESG score (environmental, social, governance), institutional divestment risk
+- [ ] `FMP: getCommodityQuotes` — copper, oil, gold prices (copper/gold ratio for macro regime)
+- [ ] `FMP: getForexQuote` (USDX) — DXY / USD strength (headwind/tailwind for multinationals)
+- [ ] `FMP: getEconomicIndicators` (GDP) — GDP growth trend for macro regime classification
+- [ ] `FMP: getEconomicIndicators` (CPI) — CPI trend for inflation regime
+- [ ] `FMP: getCOTAnalysis` — Commitment of Traders positioning (commercial hedger signals)
+- [ ] `FMP: getCOTReports` — detailed COT data for sector-related commodities
+- [ ] `FMP: getHistoricalSectorPE` — sector P/E history for relative valuation context
 
 ### Phase 7: Financial Health (22 parallel FMP calls)
 - [ ] `getFinancialRatiosTTM` — P/E, P/B, EV/EBITDA, margins, D/E, FCF ratios
 - [ ] `getKeyMetricsTTM` — ROE, ROIC, EV/Sales, Graham number (26 fields)
-- [ ] `getIncomeStatement` (FY, limit=2) — revenue, net income, EPS, R&D, SBC
+- [ ] `getIncomeStatement` (FY, limit=5) — revenue, net income, EPS, R&D, SBC (5Y for moat/forensics/capital allocation)
 - [ ] `getIncomeStatementTTM` — trailing twelve months run-rate
 - [ ] `getIncomeStatementGrowth` (quarter, limit=4) — QoQ growth acceleration
 - [ ] `getFinancialStatementGrowth` (FY, limit=2) — YoY growth + 3Y/5Y/10Y CAGR
 - [ ] `getCashFlowStatementGrowth` (quarter, limit=4) — FCF growth trajectory
-- [ ] `getBalanceSheetStatement` (FY, limit=1) — cash, debt, equity, working capital
+- [ ] `getBalanceSheetStatement` (FY, limit=5) — cash, debt, equity, working capital (5Y for forensics trends)
 - [ ] `getBalanceSheetStatementTTM` — current cash/debt snapshot
 - [ ] `getCashFlowStatement` (FY, limit=1) — operating CF, capex, FCF, D&A
 - [ ] `getFinancialScores` — Altman Z-Score, Piotroski F-Score
@@ -147,7 +175,7 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] Premium Trend (7-day % change)
 - [ ] Net Delta Exposure (volume-weighted delta skew)
 
-### Phase 11: Sentiment & Insider Activity (~32 parallel calls)
+### Phase 11: Sentiment & Insider Activity (~35 parallel calls)
 
 **Multi-platform sentiment:**
 - [ ] `TV-Analysis: market_sentiment` — Reddit sentiment
@@ -158,6 +186,9 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `WebSearch:` "{SYMBOL} site:stocktwits.com"
 - [ ] `WebSearch:` "{SYMBOL} short interest FINRA {year}"
 - [ ] `WebSearch:` "{SYMBOL} earnings whisper estimate {year}"
+- [ ] `WebSearch:` "{SYMBOL} dark pool ATS FINRA volume {year}" — dark pool activity proxy
+- [ ] `WebSearch:` "{SYMBOL} Google Trends interest {year}" — retail interest trend
+- [ ] `WebSearch:` "{SYMBOL} web traffic SimilarWeb {year}" — web traffic as alt data proxy
 
 **Insider activity:**
 - [ ] `FMP: searchInsiderTrades` (limit=10) — insider buys/sells with $ amounts
@@ -225,11 +256,13 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 
 ## PHASE GROUP 4: SYNTHESIS (Phases 15, 16, 16b)
 
-### Phase 15: Risk Quantification & Position Sizing (5 parallel calls)
+### Phase 15: Risk Quantification & Position Sizing (9 parallel calls)
 - [ ] `Alpaca: get_account_info` — equity, buying power, cash
 - [ ] `Alpaca: get_open_position` (symbol) — existing position P&L, quantity
+- [ ] `Alpaca: get_all_positions` — all positions for portfolio-level risk (sector concentration, aggregate beta, correlation)
 - [ ] `Alpaca: get_portfolio_history` (3M, 1D) — portfolio equity curve, drawdown tracking
 - [ ] `FMP: getStockPriceChange` — multi-period momentum (if not already cached)
+- [ ] `FMP: getFullChart` (1Y daily) — daily OHLCV for historical VaR/CVaR (252 trading days)
 - [ ] `WebSearch:` "{SYMBOL} earnings estimate revisions {year}" — revision trend
 
 **Derived calculations:**
@@ -238,13 +271,19 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] Check recovery exception (6M negative + 1M positive)
 - [ ] Check IPO exception (<100 trading days)
 - [ ] Check Fundamental-Catalyst Exception
-- [ ] Value at Risk: Daily VaR = price × HV × 1.645
-- [ ] Position sizing: risk_per_trade = equity × 0.02 / (entry - stop)
+- [ ] Historical VaR (95%): 5th percentile of 1Y daily returns × position_value
+- [ ] CVaR (Expected Shortfall): average of returns below 5th percentile × position_value
+- [ ] Volatility-scaled position sizing: risk_pct = 2% × (15 / VIX), capped [0.5%, 3%]
+- [ ] Drawdown-adjusted sizing: >10% drawdown = halve size, >15% = block new positions
 - [ ] Existing holdings check: subtract from 20% cap
 - [ ] Sector concentration check: warn >30%, block >40%
 - [ ] Kelly Criterion: half-Kelly vs fixed-fractional (use smaller)
 - [ ] Stop loss: support level or entry - 2×ATR or entry × 0.97
 - [ ] Take profit: resistance or analyst target (minimum R:R 2:1)
+- [ ] Gap risk adjustment: if earnings <3 days + expected move > 2x stop = block entry
+- [ ] Trailing stop: TRENDING = 3×ATR, MEAN-REVERTING = 5% fixed, TRANSITIONAL = 2.5×ATR
+- [ ] Portfolio aggregate beta check: warn if >1.5
+- [ ] Correlation risk check: warn if >3 positions in same sector
 
 ### Phase 16: Synthesis & Scoring
 
@@ -257,14 +296,14 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 
 | Dimension | Key Inputs to Check |
 |-----------|-------------------|
-| Technical | RSI, Stochastic, MACD, ADX, TF alignment, ADX-conditional RSI, Volume Direction Modifier |
-| Fundamental | Piotroski, Z-Score, revenue growth, earnings history (min 6/8), SBC Margin Adjustment |
-| Valuation | Revenue PEG + EPS PEG, EPS-PEG Divergence Adjustment, DCF range, analyst consensus, Industry P/E |
-| Smart Money | Insiders (+ 10b5-1), congressional, institutional, options flow, Insider-Inst Divergence Resolution |
-| Risk | Beta, RSI, IV/HV, earnings proximity, extension (anti-stacking with O1/O5/SM), geographic |
-| Backtest | Trade count gate, B&H waiver check, adaptive weighting, walk-forward robustness |
-| Sentiment | 5 platforms × weights (Reddit 0.30, Twitter 0.10, ST 0.10, News 0.30, Analyst 0.20) |
-| Macro | VIX, rates, sector ETF, beta sensitivity, economic calendar, yield curve |
+| Technical | RSI, Stochastic, MACD, ADX, TF alignment, ADX-conditional RSI, Volume Direction Modifier, FMP cross-validation (RSI/SMA/ADX), regime detection, Williams %R, DEMA/TEMA/WMA, relative strength vs market |
+| Fundamental | Piotroski, Z-Score, revenue growth, earnings history (min 6/8), SBC Margin Adjustment, Economic Moat modifier, Financial Statement Forensics (Beneish M-Score, accruals, receivables, inventory) |
+| Valuation | Revenue PEG + EPS PEG, EPS-PEG Divergence Adjustment, DCF range, analyst consensus, Industry P/E, bear-case DCF stress test, margin of safety, implied growth rate, TAM (Track B) |
+| Smart Money | Insiders (+ 10b5-1), congressional, institutional, options flow, Insider-Inst Divergence Resolution, fund quality weighting, dark pool proxy, quality gate (cap at 6 if Fund <=3), 13F staleness |
+| Risk | Beta (mcap-adjusted), RSI (ADX-conditional, anti-stacking with O1), IV/HV (earnings-scaled), earnings proximity (EBP gate), extension (anti-stacking with O5/SM), geographic, bid/ask (market hours only) |
+| Backtest | Trade count gate, B&H waiver check, adaptive weighting, walk-forward robustness, statistical significance t-test |
+| Sentiment | 5 platforms × mcap-scaled weights, News NLP paywall discount, consensus crowding indicator, multi-agent Override 8 |
+| Macro | VIX (graduated by beta), rates, sector ETF, per-stock sensitivity (beta/intl rev/D:E), economic calendar, yield curve flat, global indicators (copper/gold, oil, DXY, GDP, CPI, COT), macro regime quadrant |
 
 **Step 2 — Weighted composite:**
 - [ ] Check earnings regime → select weight table
@@ -341,13 +380,13 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 
 | Server | Calls | Notes |
 |--------|------:|-------|
-| **FMP** | ~75 | Bulk of data; many cacheable per session |
-| **TV-Analysis** | ~12 | Screeners, backtests, sentiment |
+| **FMP** | ~90 | Bulk of data; many cacheable per session. Includes 9 always-on technical indicators + 6 macro additions |
+| **TV-Analysis** | ~16 | Screeners, backtests, sentiment, market context (snapshot + gainers + losers + volume breakout) |
 | **TV-Desktop** | ~13 | Chart setup, indicators, screenshot, annotations |
-| **Alpaca** | ~9 | Market clock, options chain, account, positions, portfolio history |
-| **WebSearch** | ~5 | Sentiment, short interest, 10b5-1, estimate revisions |
+| **Alpaca** | ~10 | Market clock, options chain, account, positions, all_positions, portfolio history |
+| **WebSearch** | ~9 | Sentiment, short interest, 10b5-1, estimate revisions, dark pool, Google Trends, SimilarWeb |
 | **WebFetch** | ~5 | News article NLP (4-5 articles) |
-| **Total** | **~119** | Reduced to ~85-100 with caching and conditionals |
+| **Total** | **~143** | Reduced to ~100-120 with caching and conditionals |
 
 ---
 
@@ -356,20 +395,20 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 | Batch | Calls | Phase |
 |-------|-------|-------|
 | 1 | get_clock + getCompanyProfile + getStockPriceChange + get_stock_snapshot | 0, 1 |
-| 2 | multi_timeframe + coin_analysis | 3 |
-| 3 | getShareFloat + smart_volume + volume_confirmation + consecutive_candles | 4 |
+| 2 | multi_timeframe + coin_analysis + 9 FMP indicators + 3 market context | 3 |
+| 3 | getShareFloat + smart_volume + volume_confirmation + consecutive_candles + volume_breakout | 4 |
 | 4 | advanced_candle_pattern + bollinger_scan | 5 |
 | 5 | tv_health_check → chart_set_symbol → chart_set_timeframe → add indicators → read data → screenshot | 6 |
-| 6 | All 8 macro/sector calls | 2 |
-| 7 | All 18 financial health calls | 7 |
+| 6 | All 15 macro/sector/global calls | 2 |
+| 7 | All 22 financial health calls | 7 |
 | 8 | getStockPeers → getBatchQuotes + 3× peer ratios | 8 |
 | 9 | 4 DCF/valuation + 10 analyst calls | 9 |
 | 10 | 2 option chains + getStandardDeviation → get_option_bars | 10 |
-| 11 | All ~21 sentiment/insider/news calls | 11 |
+| 11 | All ~35 sentiment/insider/news calls | 11 |
 | 12 | 2 institutional calls | 12 |
 | 13 | getEarningsTranscript (conditional) | 13 |
 | 14 | compare_strategies → backtest → walk_forward → desktop cross-val | 14 |
-| 15 | get_account_info + get_open_position + getStockPriceChange + WebSearch | 15 |
+| 15 | get_account_info + get_open_position + get_all_positions + get_portfolio_history + getStockPriceChange + getFullChart + WebSearch | 15 |
 | 16 | Score → composite → overrides → signal → save → display | 16 |
 | 17 | draw_shape × 2 + alert_create × 2 | 16b |
 

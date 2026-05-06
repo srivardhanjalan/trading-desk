@@ -59,13 +59,20 @@ Calculate these 10 metrics from the chain data:
 | **Premium Trend** | From `get_option_bars`: 7-day price change % for top 3 contracts. Rising/falling conviction |
 | **Net Delta Exposure** | **Preferred:** Call/Put Volume-Weighted Delta Skew = (sum(call volume × call delta) - sum(put volume × abs(put delta))) / total volume. Positive = market net long. **Fallback (only if OI confirmed present):** sum(call OI × call delta) - sum(put OI × abs(put delta)). Volume-weighted is more reliable as it reflects current-day conviction rather than accumulated OI from stale positions. |
 
+**Options Flow Event Contextualization (MANDATORY):**
+After computing all 10 metrics, cross-reference against Phase 11 earnings calendar:
+- If unusual call activity (volume > 5x OI) AND earnings within 7 days: flag "PRE-EARNINGS UNUSUAL CALLS — potential earnings bet or information edge." Weight this signal 2x in Smart Money scoring.
+- If unusual put activity AND earnings within 7 days: flag "PRE-EARNINGS PUT ACCUMULATION — hedging or bearish positioning." Weight 2x.
+- If unusual activity AND no catalyst within 30 days: flag "UNUSUAL FLOW IN QUIET PERIOD — possible MNPI or sector rotation."
+- If institutions adding shares (from 13F) AND adding puts simultaneously: classify as "PROTECTIVE HEDGING" (neutral), not bearish. Institutional put buying WITH stock buying is standard risk management.
+
 **OI availability check (REQUIRED):** Before computing metrics 2 (P/C OI Ratio), 4 (Max Pain), 6 (Unusual Activity — 5x OI threshold), and 10 (Net Delta Exposure), verify that the `get_option_chain` response contains open interest data. If OI is absent, report these 4 metrics as 'N/A — OI not available from data source' rather than estimating or silently redefining them. Only compute these metrics when OI data is confirmed present in the response.
 
 ---
 
 ## Phase 11: Sentiment & Insider/Political Activity
 
-### Step 1 — Multi-platform sentiment + news (20-23 calls, parallel)
+### Step 1 — Multi-platform sentiment + news (23-26 calls, parallel)
 
 - `mcp__tradingview-analysis__market_sentiment` with symbol=$ARGUMENTS, market="stocks" — Reddit sentiment across r/stocks, r/wsb, r/investing, r/options
 - `mcp__tradingview-analysis__multi_agent_analysis` with symbol=$ARGUMENTS, exchange from Phase 1, timeframe="1D" — 3-agent debate: Technical + Sentiment + Risk Manager
@@ -75,6 +82,9 @@ Calculate these 10 metrics from the chain data:
 - `WebSearch` query: "$ARGUMENTS site:stocktwits.com" — StockTwits sentiment (has built-in bullish/bearish tagging)
 - `WebSearch` query: "$ARGUMENTS short interest FINRA {current_year}" — short interest % of float. High SI + approaching earnings = squeeze catalyst. SI data is freely available from FINRA/Nasdaq but not in FMP.
 - `WebSearch` query: "$ARGUMENTS earnings whisper estimate {current_year}" — whisper numbers (buy-side expectations). Often higher than published consensus. If actual beats whisper, reaction is more positive than just beating consensus.
+- `WebSearch` query: "$ARGUMENTS dark pool activity ATS FINRA {current_year}" — dark pool volume as % of total. If > 40%, signals institutional accumulation/distribution. FINRA publishes biweekly ATS data. Feeds into Smart Money scoring.
+- `WebSearch` query: "$ARGUMENTS Google Trends interest {current_year}" — retail interest proxy from Google Trends data. Rising search interest often precedes retail buying waves. Declining interest = waning retail support.
+- `WebSearch` query: "{COMPANY_NAME} web traffic app downloads SimilarWeb {current_year}" — alternative demand data for e-commerce/SaaS/mobile companies. Rising web traffic/downloads = leading indicator for next quarter revenue.
 
 **Data provenance note:** WebSearch for Twitter/StockTwits returns articles ABOUT platform sentiment, not actual platform data. Always label the source accurately: 'Twitter/X (via news reports)' or 'StockTwits (via editorial summary)' — never imply direct platform access. If actual bull/bear ratios from the platform are not obtainable, note this limitation. If the `market_sentiment` MCP tool returns platform-specific data, that IS first-party data and should be labeled accordingly.
 
@@ -243,6 +253,7 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 - Quarter: {Q and year, with lag note}
 - Filing Freshness: {latest 13F filing date, staleness weight applied}
 - Holder Industry Concentration: {diversified or concentrated in X sector}
+- Fund Quality: {top-alpha accumulating / mixed / bottom-quintile dominated}
 
 ## Earnings
 - Next earnings: {date or "Not within 30 days"}
@@ -263,6 +274,11 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 ## Recent 8-K Filings
 - {date}: {filing summary}
 - Cluster Alert: {yes/no — multiple 8-Ks near earnings}
+
+## Dark Pool & Alternative Data
+- Dark Pool Volume: {X}% of total ({HIGH/NORMAL/LOW or "Data unavailable"})
+- Google Trends: {rising/stable/declining} interest
+- Web Traffic/Downloads: {data if available, or "N/A — not applicable to business model"}
 
 ## Backtesting
 - Best Strategy: {name}

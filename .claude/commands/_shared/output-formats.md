@@ -106,10 +106,14 @@ Categories: EXTREME (1M>=80%) | SEVERE (60-80%) | HIGH (45-60%) | MODERATE (30-4
 | DCF — Levered | ${VALUE} | {NOTE} |
 | DCF — Custom | ${VALUE} | {NOTE — or INVALID with reason} |
 | Analyst Target | ${TARGET} ({UPSIDE}%) | {COUNT} analysts, {BREAKDOWN} |
+| Bear-Case DCF | ${VALUE} | 50% growth, industry margins |
+| Margin of Safety | {PCT}% | {LABEL — significant/moderate/negative} |
+| Implied Growth | {PCT}% | vs {CONSENSUS}% consensus — {LABEL} |
 | Next Earnings | {DATE} | EPS est {EPS}, Rev est {REV} |
 ```
 
 For Track B, add note: "DCF unreliable for high-growth — PEG is primary metric."
+If margin of safety > 30%: highlight green. If negative: highlight red.
 
 ### Section 6: Sentiment [MANDATORY]
 
@@ -202,6 +206,7 @@ Below table, always include these lines:
 ```
 BACKTEST ADAPTIVE: {N} trades → {X}% weight. {REDISTRIBUTION_NOTE}.
 B&H BENCHMARK: {RETURN}% return. {WAIVER_STATUS}.
+SIGNIFICANCE: t={VALUE}, p={APPROX}. {SIGNIFICANT/MARGINAL/INSIGNIFICANT}.
 ```
 
 ### Section 12: Trade Setup [MANDATORY]
@@ -217,6 +222,9 @@ B&H BENCHMARK: {RETURN}% return. {WAIVER_STATUS}.
 | **R:R Ratio** | **{RATIO}:1** | |
 | Spread | ${SPREAD} ({PCT}%) | {LABEL — excellent/acceptable/wide} |
 | Position Size | {SHARES} sh / ${AMOUNT} | {PCT}% of ${EQUITY} |
+| VaR (95%) | ${DAILY} daily / ${WEEKLY} weekly | {METHOD — historical/parametric} |
+| CVaR | ${CVAR} | Expected shortfall |
+| Trailing Stop | ${LEVEL} | {TYPE — ATR/fixed/%} per regime |
 ```
 
 For WAIT signals: Show "Wait Entry" instead of "Entry" with conditions below table.

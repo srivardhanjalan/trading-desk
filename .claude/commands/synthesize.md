@@ -15,13 +15,15 @@ If any report file is missing, note which phases are unavailable and reduce data
 
 ## Phase 15: Risk Quantification & Position Sizing
 
-**5 calls (3 Alpaca + 1 FMP + 1 WebSearch, parallel):**
+**9 calls (6 Alpaca + 2 FMP + 1 WebSearch, parallel):**
 
 - Call `mcp__alpaca__get_account_info` — current equity, buying power, cash
 - Call `mcp__alpaca__get_open_position` with symbol=$ARGUMENTS — check if already held, current P&L, quantity
 - Call `mcp__financial-modeling-prep__getStockPriceChange` with symbol=$ARGUMENTS — multi-period price performance (1D, 5D, 1M, 3M, 6M, 1Y) for momentum extension scoring
 - Call `WebSearch` query: "$ARGUMENTS earnings estimate revisions {current_year}" — analyst estimate revision trend from Zacks/Yahoo. Fallback for broken `getAnalystEstimates` (402 error). Rising estimates = bullish catalyst. Falling = headwind.
 - Call `mcp__alpaca__get_portfolio_history` with period="3M", timeframe="1D" — portfolio-level equity curve and drawdown over last 3 months. Used for sector concentration context and portfolio-level risk assessment. If max drawdown >15% in last month, apply more conservative position sizing.
+- Call `mcp__alpaca__get_all_positions` — all current positions for portfolio-level risk assessment (sector concentration, aggregate beta, correlation risk)
+- Call `mcp__financial-modeling-prep__getFullChart` with symbol=$ARGUMENTS, from_date={1 year ago YYYY-MM-DD}, to={today YYYY-MM-DD} — daily OHLCV for historical VaR/CVaR computation (requires 252 trading days of returns)
 
 ### Derived Calculations
 
@@ -42,12 +44,20 @@ Using data from all phase reports:
 - Record: 1D%, 5D%, 1M%, 3M%, 6M%, 1Y% in the Momentum row of the report
 - This modifier is applied as Override 5. **Combined penalty with Override 1:** `combined = max(O1, O5) + 0.3 × min(O1, O5)` (replaces old "use the larger penalty" rule)
 
-**Value at Risk (VaR):**
-- Daily VaR = price * HV (from Phase 10) * 1.645 (95% confidence)
-- Weekly VaR = Daily VaR * sqrt(5)
+**Historical Value at Risk (VaR) & CVaR:**
+Using 1-year daily returns from `getFullChart`:
+- Sort daily returns ascending. Daily VaR (95%) = 5th percentile of historical daily returns × position_value.
+- Weekly VaR = Daily VaR × sqrt(5).
+- **CVaR (Conditional VaR / Expected Shortfall):** Average of all returns below the 5th percentile × position_value. CVaR captures tail risk better than VaR.
+- If <200 trading days available: fall back to parametric VaR = price × HV × 1.645 (95% confidence). Note: "VaR: PARAMETRIC (insufficient history for historical)."
+- Report: "VaR(95%): ${daily} daily / ${weekly} weekly. CVaR: ${cvar}. Method: {historical/parametric}."
 
-**Position Sizing (Fixed-Fractional):**
-- Risk per trade = equity * 0.02 (2% risk)
+**Volatility-Scaled Position Sizing:**
+- **Base risk per trade:** risk_pct = 2% × (15 / current_VIX), capped at [0.5%, 3%].
+  - VIX = 15: risk_pct = 2.0% (normal)
+  - VIX = 30: risk_pct = 1.0% (defensive)
+  - VIX = 10: risk_pct = 3.0% (capped — aggressive)
+- Risk per trade = equity × risk_pct
 - Stop loss = support level from Phase 3, or entry - (ATR * 2), or entry * 0.97 (3% max)
 - Position size (shares) = risk_per_trade / (entry_price - stop_loss)
 - Position size ($) = shares * entry_price
@@ -55,6 +65,9 @@ Using data from all phase reports:
 - Cap at 20% of portfolio (diversification limit) for combined existing + new
 - If STRONG BUY: allow up to 2x normal sizing (still capped at 20%)
 - **Sector concentration check:** After computing position size, check sector exposure across `get_all_positions`. Warn if adding this position pushes sector above 30%. Block if sector would exceed 40%.
+- **Drawdown-adjusted sizing:** From `get_portfolio_history`, compute max drawdown in last 30 days:
+  - Drawdown > 10%: halve position size. "DRAWDOWN BRAKE: Portfolio down {X}% in 30d. Position halved."
+  - Drawdown > 15%: block new positions. "DRAWDOWN BLOCK: Portfolio down {X}% in 30d. No new positions."
 
 **Kelly Criterion (from Phase 14 backtest):**
 - Kelly % = win_rate - (loss_rate / avg_win_loss_ratio)
@@ -76,6 +89,27 @@ Using data from all phase reports:
 - Must be >= 2.0 for BUY recommendation
 - If R:R < 1.5, downgrade to HOLD regardless of composite score
 
+**Gap Risk Adjustment (Earnings Proximity):**
+When earnings are within 3 trading days, the expected overnight gap adds unhedgeable risk:
+- Compute expected move from options data (from sentiment report Phase 10).
+- If expected move > 2x stop distance: BLOCK new entry. "GAP RISK: Expected earnings move ${X} exceeds 2x stop distance ${Y}. Wait for post-earnings setup."
+- If expected move > 1x stop distance: reduce position size by 50%. "GAP RISK: Expected move ${X} > stop distance ${Y}. Position halved."
+- If expected move < stop distance: normal sizing. Note gap risk in warnings.
+
+**Trailing Stop Framework:**
+After entry, provide trailing stop recommendations based on regime (from Technical report):
+- **TRENDING regime (ADX avg > 25):** ATR-based trailing stop = entry - (3 × ATR). Trails upward but never downward. "TRAILING STOP (ATR): ${level}. Widens to accommodate trend volatility."
+- **MEAN-REVERTING regime (ADX avg < 18):** Fixed percentage stop = entry × 0.95 (5% max loss). "TRAILING STOP (FIXED): ${level}. Tight stop for range-bound market."
+- **TRANSITIONAL regime:** Use 2.5 × ATR. "TRAILING STOP (HYBRID): ${level}."
+- Trailing stops are ADVISORY — they are displayed in the report and drawn on the chart (Phase 16b) but not auto-executed.
+
+**Portfolio-Level Risk Management:**
+Using data from `get_all_positions`:
+- **Aggregate portfolio beta:** Compute position-weighted average beta. If aggregate beta > 1.5: "PORTFOLIO BETA WARNING: {X}. Consider hedging or reducing high-beta positions."
+- **Sector concentration:** Group positions by sector. If any sector > 30%: "SECTOR CONCENTRATION: {sector} at {X}%. Consider diversifying." If > 40%: block new positions in that sector.
+- **Correlation risk:** If >3 positions in same sector or >5 positions with beta > 1.5: "CORRELATION RISK: {N} correlated positions. Portfolio drawdown amplified in sector downturn."
+- **Liquidity risk:** If any position > 5% of stock's average daily volume: "LIQUIDITY RISK: Position in {symbol} = {X}% of ADV. May cause slippage on exit."
+
 ---
 
 ## Phase 16: Synthesis & Recommendation
@@ -96,14 +130,14 @@ Check `getEarningsCalendar` data from Phase 11 or fundamental report:
 Apply `_shared/scoring-rubrics.md` thresholds to data from all phase reports. For each dimension, assign a score 1-10 with brief justification.
 
 **Scoring checklist — ensure all inputs are used:**
-- **Technical:** RSI (exact value), Stochastic (%K/%D exact values), MACD, ADX, timeframe alignment count. Apply ADX-conditional RSI interpretation (if ADX > 35 with +DI > 2x -DI, RSI overbought is trend confirmation — no cap). Apply Volume Direction Modifier (distribution/accumulation on high volume).
-- **Fundamental:** Piotroski, Z-Score, revenue growth, earnings beat/miss history (minimum 6/8 quarters required for modifier). Apply SBC Margin Adjustment: **for EVERY stock, compute SBC/revenue. If >10%, MUST apply SBC Margin Adjustment.** This is not optional.
-- **Valuation:** Revenue PEG (primary), EPS PEG (secondary). Apply Scaled EPS-PEG Divergence Adjustment (divergence ratio >= 4.0 → +3, >= 3.0 → +2, >= 2.0 → +1; cap at Val 7; cap at +2 if P/S > 40x). PSG (routing alt only), DCF range, analyst consensus vs price.
-- **Sentiment:** All 5 platform scores × weights. Include News NLP compliance status.
-- **Smart Money:** Insider activity + 10b5-1 status + congressional trades + institutional ownership + options flow. Apply Insider-Institutional Divergence Resolution (if all selling is 10b5-1 + institutional accumulation > 5% → floor 6). Congressional data from `{SYMBOL}_sentiment.md` must be included in justification.
-- **Macro:** VIX + rates + sector ETF (if available). If sector ETF data unavailable (FMP 402): cap Macro at 6.
-- **Backtest:** Apply trade count gate FIRST (<3 trades = score 5, 0% weight). **CHECK B&H RETURN BEFORE PENALTY:** If B&H > 100%, skip penalty entirely — log "B&H WAIVER: {X}% return." If B&H > 50% AND strategy captures >70% of B&H, no penalty (capture ratio). Apply Adaptive Backtest Weighting (reduce effective weight based on trade count; halve if walk-forward robustness < 0.3). Log: "BACKTEST ADAPTIVE: {N} trades → {X}% weight."
-- **Risk:** Beta, RSI, IV, earnings proximity, extension from SMA50, geographic concentration.
+- **Technical:** RSI (exact value), Stochastic (%K/%D exact values), MACD, ADX, timeframe alignment count. Apply ADX-conditional RSI interpretation (if ADX > 35 with +DI > 2x -DI, RSI overbought is trend confirmation — no cap). Apply Volume Direction Modifier (distribution/accumulation on high volume). Cross-validate FMP indicators (RSI, SMA, ADX) vs TradingView — flag divergence >10 points. Check regime (TRENDING/TRANSITIONAL/MEAN-REVERTING) and adjust indicator interpretation. Include Williams %R, DEMA/TEMA/WMA confirmation signals. Check relative strength vs market snapshot.
+- **Fundamental:** Piotroski, Z-Score, revenue growth, earnings beat/miss history (minimum 6/8 quarters required for modifier). Apply SBC Margin Adjustment: **for EVERY stock, compute SBC/revenue. If >10%, MUST apply SBC Margin Adjustment.** This is not optional. Apply Economic Moat modifier (margin premium, revenue concentration, recurring revenue, capital allocation). Apply Financial Statement Forensics modifier (Beneish M-Score, accruals ratio, receivables/revenue trend, inventory/revenue trend).
+- **Valuation:** Revenue PEG (primary), EPS PEG (secondary). Apply Scaled EPS-PEG Divergence Adjustment (divergence ratio >= 4.0 → +3, >= 3.0 → +2, >= 2.0 → +1; cap at Val 7; cap at +2 if P/S > 40x). PSG (routing alt only), DCF range, analyst consensus vs price. Apply Bear-Case DCF stress test (50% growth, industry margins). Compute margin of safety and implied growth rate. Apply Industry P/E relative modifier. For Track B: check TAM penetration.
+- **Sentiment:** All 5 platform scores × market-cap-scaled weights (large/mid/small cap tables). Include News NLP compliance status + paywall discount. Check Consensus Crowding indicator (>80% agreement = contrarian risk). Apply multi-agent Override 8 if available.
+- **Smart Money:** Insider activity + 10b5-1 status + congressional trades + institutional ownership + options flow. Apply Insider-Institutional Divergence Resolution (if all selling is 10b5-1 + institutional accumulation > 5% → floor 6). Congressional data from `{SYMBOL}_sentiment.md` must be included in justification. Apply fund quality weighting (top-alpha funds accumulating = +1, activist >5% = +2). Check dark pool activity proxy (unusual ATS volume). Apply Smart Money quality gate (cap at 6 if Fundamental <= 3). Apply 13F staleness weighting.
+- **Macro:** VIX (graduated by beta) + rates + sector ETF (if available). If sector ETF data unavailable (FMP 402): cap Macro at 5. Apply per-stock sensitivity multiplier (beta, international revenue, D/E ratio). Check economic calendar events (FOMC, CPI within 3 days). Classify macro regime (Goldilocks/Reflation/Stagflation/Deflation) from GDP+CPI trends. Incorporate global indicators: copper/gold ratio, oil, DXY, COT data. Apply yield curve flat detection (0-25bps = -1).
+- **Backtest:** Apply trade count gate FIRST (<3 trades = score 5, 0% weight). **CHECK B&H RETURN BEFORE PENALTY:** If B&H > 100%, skip penalty entirely — log "B&H WAIVER: {X}% return." If B&H > 50% AND strategy captures >70% of B&H, no penalty (capture ratio). Apply Adaptive Backtest Weighting (reduce effective weight based on trade count; halve if walk-forward robustness < 0.3). Log: "BACKTEST ADAPTIVE: {N} trades → {X}% weight." Apply statistical significance t-test for >=10 trades (t > 2.0 = significant, 1.5-2.0 = marginal cap at 7, < 1.5 = insignificant cap at 5).
+- **Risk:** Beta (market-cap-adjusted thresholds), RSI (ADX-conditional, anti-stacking with Override 1), IV/HV (earnings-proximity-scaled thresholds), earnings proximity (EBP gate), extension from SMA50 (anti-stacking with Override 5), geographic concentration, insider selling (anti-stacking with Smart Money), bid/ask spread (market hours only). Apply all anti-stacking rules to prevent triple-counting.
 
 **Asset type check:** If crypto, use crypto weights (Technical 35%, Smart Money 25%, Risk 20%, Backtest 12%, Sentiment 8%). Skip Fundamental, Valuation, Macro.
 

@@ -41,7 +41,7 @@ From `get_stock_snapshot`: extract bid/ask prices and sizes. Calculate spread = 
 
 ## Phase 3: Multi-Timeframe Technicals
 
-**2 calls, parallel:**
+**2 TV-Analysis + 5-9 FMP + 3 context calls, parallel:**
 - Call `mcp__tradingview-analysis__multi_timeframe_analysis` with symbol=$ARGUMENTS and the appropriate exchange (from Phase 1)
 - Call `mcp__tradingview-analysis__coin_analysis` with symbol=$ARGUMENTS, exchange from Phase 1, and timeframe="1D"
 
@@ -50,25 +50,54 @@ From `coin_analysis`: extract RSI, MACD (value + signal + histogram), Stochastic
 
 Record the RSI value — it's used for overbought/oversold overrides in Phase 16.
 
-**FMP Technical Fallback (when TradingView Analysis returns no data — common for OTC stocks):**
-If BOTH `multi_timeframe_analysis` and `coin_analysis` return errors or empty data, fall back to FMP technical indicators:
-- Call `mcp__financial-modeling-prep__getRSI` with symbol=$ARGUMENTS, periodLength=14, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — RSI(14) daily values
-- Call `mcp__financial-modeling-prep__getSMA` with symbol=$ARGUMENTS, periodLength=50, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — SMA(50)
-- Call `mcp__financial-modeling-prep__getSMA` with symbol=$ARGUMENTS, periodLength=200, timeframe="1day", from_date={300 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — SMA(200)
-- Call `mcp__financial-modeling-prep__getEMA` with symbol=$ARGUMENTS, periodLength=20, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — EMA(20) for Bollinger midline proxy
-- Call `mcp__financial-modeling-prep__getADX` with symbol=$ARGUMENTS, periodLength=14, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — ADX, +DI, -DI
+**FMP Technical Indicators (ALWAYS-ON — not fallback):**
+Always fetch FMP technical indicators alongside TradingView data for cross-validation. Two independent data sources are more reliable than one.
 
-Note: FMP fallback does NOT provide Stochastic, support/resistance, or multi-timeframe alignment. Apply -1 data gap penalty to Technical score when using FMP fallback. TradingView Desktop (Phase 6) can still provide visual confirmation and indicator values.
+**Core indicators (5 calls, parallel):**
+- Call `mcp__financial-modeling-prep__getRSI` with symbol=$ARGUMENTS, periodLength=14, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — RSI(14). Cross-validate with TV RSI. If divergence >10 points, use average and flag "RSI DIVERGENCE."
+- Call `mcp__financial-modeling-prep__getSMA` with symbol=$ARGUMENTS, periodLength=50, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — SMA(50). Cross-validate with TV.
+- Call `mcp__financial-modeling-prep__getSMA` with symbol=$ARGUMENTS, periodLength=200, timeframe="1day", from_date={300 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — SMA(200). Cross-validate with TV.
+- Call `mcp__financial-modeling-prep__getEMA` with symbol=$ARGUMENTS, periodLength=20, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — EMA(20) for Bollinger midline proxy
+- Call `mcp__financial-modeling-prep__getADX` with symbol=$ARGUMENTS, periodLength=14, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — ADX, +DI, -DI. Cross-validate with TV. Also fetch 60-day lookback for regime detection (ADX average).
+
+**Extended indicators (4 calls, parallel):**
+- Call `mcp__financial-modeling-prep__getDEMA` with symbol=$ARGUMENTS, periodLength=20, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — Double EMA, faster trend detection than SMA/EMA
+- Call `mcp__financial-modeling-prep__getTEMA` with symbol=$ARGUMENTS, periodLength=20, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — Triple EMA, most responsive. Divergence from price = early momentum shift warning
+- Call `mcp__financial-modeling-prep__getWMA` with symbol=$ARGUMENTS, periodLength=20, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — Weighted MA, emphasizes recent bars. Slope direction confirms trend
+- Call `mcp__financial-modeling-prep__getWilliams` with symbol=$ARGUMENTS, periodLength=14, timeframe="1day", from_date={60 days ago YYYY-MM-DD}, to={today YYYY-MM-DD} — Williams %R oscillator. < -80 = oversold (bullish), > -20 = overbought (bearish). Confirms RSI readings.
+
+**Cross-validation rules:**
+- RSI: If TV and FMP within 5 points = high confidence. If >10 points divergence = flag and average.
+- SMA/EMA: If TV and FMP within 1% = confirmed. If >3% divergence = flag data quality issue.
+- ADX: Use FMP as primary for 60-day average (regime detection). Use TV for current ADX.
+- Williams + RSI agreement: both overbought = strong exhaustion signal. Williams overbought + RSI neutral = weak signal, use Williams as early warning only.
+
+**Regime Detection (computed from FMP ADX 60-day data):**
+- ADX 60-day average > 25: TRENDING regime
+- ADX 60-day average 18-25: TRANSITIONAL regime
+- ADX 60-day average < 18: MEAN-REVERTING regime
+- Log: "REGIME: {TRENDING/TRANSITIONAL/MEAN-REVERTING} (ADX avg {X})."
+- Regime affects indicator interpretation in Phase 16 scoring (see scoring-rubrics.md).
+
+**If TradingView Analysis returns no data (OTC stocks, data gaps):** FMP data becomes the PRIMARY source instead of cross-validation. Apply -1 data gap penalty to Technical score (FMP lacks Stochastic, support/resistance, multi-timeframe alignment).
+
+**Market Context (3 calls, parallel):**
+- Call `mcp__tradingview-analysis__market_snapshot` — global market overview: major indices, sectors, crypto, FX, commodities. Provides context: is this stock outperforming in a down market (very strong) or underperforming in an up market (very weak)?
+- Call `mcp__tradingview-analysis__top_gainers` with exchange from Phase 1 — daily market leaders. If target stock is a top gainer, note relative strength.
+- Call `mcp__tradingview-analysis__top_losers` with exchange from Phase 1 — daily laggards. If target stock is a top loser, note relative weakness.
+
+**Relative Strength Assessment:** Compare stock's 1D performance against market snapshot. If stock is up while market is down, or up more than market: "RELATIVE STRENGTH: Outperforming market by {X}pp." If underperforming: "RELATIVE WEAKNESS: Underperforming market by {X}pp."
 
 ---
 
 ## Phase 4: Volume & Smart Money
 
-**4 calls, parallel:**
+**5 calls, parallel:**
 - Call `mcp__financial-modeling-prep__getShareFloat` with symbol=$ARGUMENTS — extract float size, short interest %, short ratio
 - Call `mcp__tradingview-analysis__smart_volume_scanner` with the exchange from Phase 1
 - Call `mcp__tradingview-analysis__volume_confirmation_analysis` with symbol=$ARGUMENTS and exchange from Phase 1 — confirms whether price advance/decline is backed by volume. Volume-confirmed moves are more reliable. Feeds into Volume Direction Modifier for Technical scoring.
 - Call `mcp__tradingview-analysis__consecutive_candles_scan` with exchange from Phase 1 and timeframe="1D" — detects sequences of consecutive bullish/bearish candles. 5+ consecutive bullish candles before earnings = momentum confirmation signal.
+- Call `mcp__tradingview-analysis__volume_breakout_scanner` with exchange from Phase 1 — identifies stocks with volume breakouts (high volume + price breakout). POST-FILTER for $ARGUMENTS. Volume breakouts confirm trend changes and provide higher-confidence entry signals.
 
 **Post-filter `smart_volume_scanner`:** This returns exchange-wide results. Search the response for $ARGUMENTS. If found, extract that symbol's unusual volume data. If not found, note "No unusual volume detected for $ARGUMENTS" (neutral signal, not negative).
 
@@ -149,6 +178,23 @@ Write all collected data to `reports/{SYMBOL}_technical.md` with this structure:
 - Bollinger: Upper X, Middle X, Lower X
 - SMA50: $X | SMA200: $X
 - Support: $X | Resistance: $X
+
+## FMP Cross-Validation
+- RSI: TV {X} vs FMP {X} — {CONFIRMED/DIVERGENCE}
+- SMA50: TV ${X} vs FMP ${X} — {CONFIRMED/DIVERGENCE}
+- SMA200: TV ${X} vs FMP ${X} — {CONFIRMED/DIVERGENCE}
+- ADX: TV {X} vs FMP {X} — {CONFIRMED/DIVERGENCE}
+- Williams %R: {X} ({overbought/oversold/neutral})
+- DEMA(20): ${X} | TEMA(20): ${X} | WMA(20): ${X}
+
+## Regime Detection
+- ADX 60-day average: {X}
+- Regime: {TRENDING/TRANSITIONAL/MEAN-REVERTING}
+- Interpretation: {how this affects indicator readings}
+
+## Market Context
+- Market Snapshot: {broad market direction}
+- Relative Strength: {outperforming/underperforming by X%}
 
 ## Volume & Float
 - Float: X shares | Short Interest: X% | Short Ratio: X
