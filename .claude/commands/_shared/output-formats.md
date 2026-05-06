@@ -41,7 +41,7 @@ Use markdown tables throughout for clean, consistent rendering. All sections use
 | Fundamental | {F}/10 | {F_BAR} | 15% | {F_DRIVER} |
 | Valuation | {V}/10 | {V_BAR} | 15% | {V_DRIVER} |
 | Smart Money | {SM}/10 | {SM_BAR} | 13% | {SM_DRIVER} |
-| Risk | {R}/10 | {R_BAR} | 12% | {R_DRIVER} |
+| Risk (10=safest) | {R}/10 | {R_BAR} | 12% | {R_DRIVER} |
 | Backtest | {BT}/10 | {BT_BAR} | 10% | {BT_DRIVER} |
 | Sentiment | {S}/10 | {S_BAR} | 7% | {S_DRIVER} |
 | Macro | {M}/10 | {M_BAR} | 6% | {M_DRIVER} |
@@ -68,6 +68,7 @@ If pre-earnings weights active, add: `⚡ PRE-EARNINGS WEIGHTS: Earnings in {N} 
 | Change | {1D}% | {5D}% | {1M}% | {3M}% | {6M}% | {1Y}% |
 
 **Extension Risk: {CATEGORY}** — {1M_DESCRIPTION}. Override 5: {MODIFIER_APPLIED}.
+Categories: EXTREME (1M>=80%) | SEVERE (60-80%) | HIGH (45-60%) | MODERATE (30-45%) | LOW (15-30%) | NONE (<15%). Market cap scaling applied: >$100B=1.0x, $10-100B=1.2x, $2-10B=1.5x, <$2B=2.0x.
 ```
 
 Bar format: `████████░░` for 8/10 — use `█` filled, `░` empty, 10 chars.

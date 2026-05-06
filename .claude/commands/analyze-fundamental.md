@@ -15,6 +15,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - Call `mcp__financial-modeling-prep__getTreasuryRates` — extract 2Y, 5Y, 10Y, 30Y yields. Check yield curve shape (2Y > 10Y = inverted = recession signal).
 - Call `mcp__financial-modeling-prep__getStockPriceChange` with the sector ETF symbol based on the stock's sector:
   - Technology → XLK, Semiconductors → SMH, Financials → XLF, Energy → XLE, Healthcare → XLV, Consumer Discretionary → XLY, Industrials → XLI, Real Estate → XLRE, Utilities → XLU, Materials → XLB, Comm Services → XLC, Consumer Staples → XLP
+  - **Sub-sector mappings:** Use FMP industry field to determine the correct ETF. "Semiconductors" or "Semiconductor Equipment" → SMH. "Communication Equipment", "Electronic Components", "Computer Hardware" → XLK (parent sector, NOT SMH). "Software" → XLK. When in doubt, use parent sector ETF.
   - **ETF route:** Compare to SPY instead (the ETF IS the sector)
 - Call `mcp__financial-modeling-prep__getIndexQuote` with symbol="^VIX" — VIX fear gauge. Labels: <15 = "calm", 15-20 = "normal", 20-25 = "elevated", 25-30 = "fear", >30 = "PANIC"
 - Call `mcp__financial-modeling-prep__getSectorPerformanceSnapshot` — real-time sector momentum. Fallback if sector ETF getStockPriceChange returns 402. Shows whether money is flowing into/out of this stock's sector.
@@ -64,10 +65,13 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - Call `mcp__financial-modeling-prep__getStockPeers` with symbol=$ARGUMENTS — get list of peer companies. Take top 3-4 by relevance.
 - If empty: note "No peer data available", skip to Phase 9.
 
-**Step 2:**
-- Call `mcp__financial-modeling-prep__getBatchQuotes` with symbols=$ARGUMENTS + top 3 peers (comma-separated, e.g., "AMD,NVDA,INTC,QCOM") — returns price, change%, marketCap, 50SMA, 200SMA for ALL in one call. This replaces 4 individual getQuote calls.
+**Step 2 (parallel calls):**
+- Call `mcp__financial-modeling-prep__getBatchQuotes` with symbols=$ARGUMENTS + top 3 peers (comma-separated, e.g., "AMD,NVDA,INTC,QCOM") — returns price, change%, marketCap, 50SMA, 200SMA for ALL in one call.
+- Call `mcp__financial-modeling-prep__getFinancialRatiosTTM` for each of the top 3 peers (3 parallel calls) — returns P/E, EV/EBITDA, gross margin, operating margin, ROE, D/E for valuation comparison.
+- For large-cap stocks (>$50B): expand to top 5 peers for better statistical reliability.
+- **Peer validation:** Reject peers with mismatched sector/industry, >10x market cap difference, or revenue model mismatch. If `getStockPeers` returns irrelevant results, fall back to industry P/E from `getIndustryPESnapshot` (already collected in Phase 2).
 
-**Build peer comparison table:** Compare the stock vs peers on price momentum, market cap, and quick valuation metrics. For deeper valuation comparison, use the main stock's ratiosTTM data from Phase 7.
+**Build peer comparison table:** Compare the stock vs peers on P/E, EV/EBITDA, Gross Margin, Operating Margin, Revenue Growth, ROE, D/E, market cap, and price momentum. This data feeds into Track A Valuation criteria ("P/E below peer median").
 
 ---
 

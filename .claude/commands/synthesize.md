@@ -29,14 +29,17 @@ Using data from all phase reports:
 **Momentum Extension Risk (from getStockPriceChange):**
 - Extract 1M and 3M percentage changes
 - Classify into extension category per `_shared/scoring-rubrics.md` "Momentum Extension Modifier":
-  - EXTREME: 1M >= 60% OR (1M >= 40% AND 3M >= 90%) → subtract 5 from composite
-  - HIGH: 1M >= 30% OR (1M >= 20% AND 3M >= 60%) → subtract 2 from composite
-  - MEDIUM: 1M >= 15% OR 3M >= 30% → no modifier
-  - LOW: 1M < 15% AND 3M < 30% → no modifier
-- Check recovery exception: if 6M < 0 AND 1M > 0, reduce category by one tier
+  - EXTREME: 1M >= 80% OR (1M >= 60% AND 3M >= 120%) → subtract 5
+  - SEVERE: 1M in [60%, 80%) OR (1M >= 40% AND 3M >= 90%) → subtract 4
+  - HIGH: 1M in [45%, 60%) OR (1M >= 30% AND 3M >= 60%) → subtract 3
+  - MODERATE: 1M in [30%, 45%) OR (1M >= 20% AND 3M >= 45%) → subtract 2
+  - LOW: 1M < 30% AND 3M < 45% → no modifier
+  - NONE: 1M < 15% AND 3M < 30% → no modifier
+- **Market cap scaling:** Multiply thresholds by: >$100B = 1.0x, $10-100B = 1.2x, $2-10B = 1.5x, <$2B = 2.0x
+- Check recovery exception: if 6M < 0 AND 1M > 0, OR 6M < +5% AND 1M > 6x abs(6M change) → reduce category by one tier
 - Check IPO exception: if <100 trading days, halve the penalty
 - Record: 1D%, 5D%, 1M%, 3M%, 6M%, 1Y% in the Momentum row of the report
-- This modifier is applied as Override 5 (does NOT stack with Override 1 overbought — use larger penalty)
+- This modifier is applied as Override 5. **Combined penalty with Override 1:** `combined = max(O1, O5) + 0.3 × min(O1, O5)` (replaces old "use the larger penalty" rule)
 
 **Value at Risk (VaR):**
 - Daily VaR = price * HV (from Phase 10) * 1.645 (95% confidence)
@@ -47,8 +50,10 @@ Using data from all phase reports:
 - Stop loss = support level from Phase 3, or entry - (ATR * 2), or entry * 0.97 (3% max)
 - Position size (shares) = risk_per_trade / (entry_price - stop_loss)
 - Position size ($) = shares * entry_price
-- Cap at 20% of portfolio (diversification limit)
+- **Existing holdings check:** Subtract existing position value (from `get_open_position`) from 20% cap before computing new position size. If existing position >= 20%, block new position.
+- Cap at 20% of portfolio (diversification limit) for combined existing + new
 - If STRONG BUY: allow up to 2x normal sizing (still capped at 20%)
+- **Sector concentration check:** After computing position size, check sector exposure across `get_all_positions`. Warn if adding this position pushes sector above 30%. Block if sector would exceed 40%.
 
 **Kelly Criterion (from Phase 14 backtest):**
 - Kelly % = win_rate - (loss_rate / avg_win_loss_ratio)
@@ -74,12 +79,16 @@ Using data from all phase reports:
 
 ## Phase 16: Synthesis & Recommendation
 
-### Step 0 — Determine Earnings Regime
+### Step 0 — Determine Earnings Regime (MANDATORY GATE)
+
+**This step is NON-OPTIONAL and MUST be completed BEFORE computing ANY weights or scores.**
 
 Check `getEarningsCalendar` data from Phase 11 or fundamental report:
-- If earnings within 7 calendar days: **USE PRE-EARNINGS WEIGHTS** (see scoring-rubrics.md "Pre-Earnings Weight Switching" section). Note: "PRE-EARNINGS WEIGHT SWITCH active."
+- If earnings within 7 calendar days (use trading days via `getCalendar` if available): **USE PRE-EARNINGS WEIGHTS** (see scoring-rubrics.md "Pre-Earnings Weight Switching" section). Note: "PRE-EARNINGS WEIGHT SWITCH active. Earnings in {N} days."
 - If analyzing within 2 trading days AFTER earnings report: flag for **Sell-the-News check** (Override 7).
+- If earnings date NOT FOUND in calendar data: use normal weights + add caution flag "EARNINGS DATE UNKNOWN" + cap Risk at 6.
 - Otherwise: use normal weights.
+- **Log which weight table is used:** "WEIGHTS: {NORMAL/PRE-EARNINGS}. Reason: {earnings date or 'no upcoming earnings'}."
 
 ### Step 1 — Score all 8 dimensions
 
@@ -87,12 +96,12 @@ Apply `_shared/scoring-rubrics.md` thresholds to data from all phase reports. Fo
 
 **Scoring checklist — ensure all inputs are used:**
 - **Technical:** RSI (exact value), Stochastic (%K/%D exact values), MACD, ADX, timeframe alignment count. Apply ADX-conditional RSI interpretation (if ADX > 35 with +DI > 2x -DI, RSI overbought is trend confirmation — no cap). Apply Volume Direction Modifier (distribution/accumulation on high volume).
-- **Fundamental:** Piotroski, Z-Score, revenue growth, earnings beat/miss history. Apply SBC Margin Adjustment if SBC > 10% of revenue.
+- **Fundamental:** Piotroski, Z-Score, revenue growth, earnings beat/miss history (minimum 6/8 quarters required for modifier). Apply SBC Margin Adjustment: **for EVERY stock, compute SBC/revenue. If >10%, MUST apply SBC Margin Adjustment.** This is not optional.
 - **Valuation:** Revenue PEG (primary), EPS PEG (secondary). Apply Scaled EPS-PEG Divergence Adjustment (divergence ratio >= 4.0 → +3, >= 3.0 → +2, >= 2.0 → +1; cap at Val 7; cap at +2 if P/S > 40x). PSG (routing alt only), DCF range, analyst consensus vs price.
 - **Sentiment:** All 5 platform scores × weights. Include News NLP compliance status.
 - **Smart Money:** Insider activity + 10b5-1 status + congressional trades + institutional ownership + options flow. Apply Insider-Institutional Divergence Resolution (if all selling is 10b5-1 + institutional accumulation > 5% → floor 6). Congressional data from `{SYMBOL}_sentiment.md` must be included in justification.
 - **Macro:** VIX + rates + sector ETF (if available). If sector ETF data unavailable (FMP 402): cap Macro at 6.
-- **Backtest:** Apply trade count gate FIRST. Apply revised B&H benchmark (waive penalty if B&H > 100%, reduce to -1 if B&H > 50%). Apply Adaptive Backtest Weighting (reduce effective weight based on trade count; halve if walk-forward robustness < 0.3). Apply walk-forward status.
+- **Backtest:** Apply trade count gate FIRST (<3 trades = score 5, 0% weight). **CHECK B&H RETURN BEFORE PENALTY:** If B&H > 100%, skip penalty entirely — log "B&H WAIVER: {X}% return." If B&H > 50% AND strategy captures >70% of B&H, no penalty (capture ratio). Apply Adaptive Backtest Weighting (reduce effective weight based on trade count; halve if walk-forward robustness < 0.3). Log: "BACKTEST ADAPTIVE: {N} trades → {X}% weight."
 - **Risk:** Beta, RSI, IV, earnings proximity, extension from SMA50, geographic concentration.
 
 **Asset type check:** If crypto, use crypto weights (Technical 35%, Smart Money 25%, Risk 20%, Backtest 12%, Sentiment 8%). Skip Fundamental, Valuation, Macro.
@@ -102,7 +111,7 @@ Apply `_shared/scoring-rubrics.md` thresholds to data from all phase reports. Fo
 **Check earnings regime from Step 0:**
 - If pre-earnings: use pre-earnings weights from scoring-rubrics.md
 - Otherwise: use normal weights
-- If Adaptive Backtest Weighting triggered (low trade count or overfitted): adjust backtest weight and redistribute proportionally
+- **Adaptive Backtest Weighting (MANDATORY):** BEFORE computing composite, check trade count. Apply adaptive weight table from scoring-rubrics.md. Log: "BACKTEST ADAPTIVE: {N} trades → {X}% effective weight (redistributed {Y}% to other dimensions proportionally)." If walk-forward robustness < 0.3 AND trade count < 10: set backtest score to 5 (neutral) and reduce weight to 3%.
 
 ```
 composite = sum(dimension_score * weight) / sum(weights) * 10
@@ -120,6 +129,8 @@ Report both in the output. Apply the Quality-Timing signal matrix from scoring-r
 **Critical:** If Quality >= 60, NEVER produce a SELL signal regardless of composite. High-quality businesses with bad timing are HOLDs, not SELLs.
 
 ### Step 3 — Apply overrides (in order)
+
+**MANDATORY: ALL overrides (1-8) MUST be explicitly evaluated and documented.** For each override, log: "OVERRIDE {N}: {APPLIED — details / NOT TRIGGERED — reason}." Skipping evaluation is a rubric violation. This prevents silent omission of Override 6, 7, or 8.
 
 **Override 1: Overbought/Oversold (Graduated, ADX-Conditional)**
 - RSI from Phase 3 technical report. ADX and +DI/-DI from Phase 3.
@@ -148,16 +159,17 @@ Report both in the output. Apply the Quality-Timing signal matrix from scoring-r
 **Override 4: R:R Check**
 - If R:R ratio < 1.5: force HOLD with note "Risk/Reward insufficient"
 
-**Override 5: Momentum Extension**
+**Override 5: Momentum Extension (Graduated)**
 - Use extension category computed in Phase 15 from `getStockPriceChange`
-- EXTREME → subtract 5. HIGH → subtract 2. MEDIUM/LOW → no change.
-- Does NOT stack with Override 1 (overbought). If both apply, use the LARGER penalty only.
-  - Example: RSI 78 = -5 (Override 1) + EXTREME extension = -5 (Override 5). Use -5, not -10.
-  - Example: RSI 72 = 0 (no Override 1) + EXTREME extension = -5. Apply -5.
-- Recovery exception: 6M return negative + 1M positive → reduce category by one tier before applying
+- Apply market cap scaling to thresholds FIRST (>$100B = 1.0x, $10-100B = 1.2x, $2-10B = 1.5x, <$2B = 2.0x)
+- EXTREME → -5. SEVERE → -4. HIGH → -3. MODERATE → -2. LOW/NONE → no change.
+- **Combined penalty with Override 1:** If both fire, compute `combined = max(O1, O5) + 0.3 × min(O1, O5)` (rounded). Apply ADX multiplier to O1 BEFORE comparison.
+  - Example: RSI 78, ADX 40 = O1 base -5 × 0.5 = -2.5. SEVERE extension = O5 -4. Combined = max(4, 2.5) + 0.3 × min(4, 2.5) = 4 + 0.75 = 5 (rounded).
+  - Example: RSI 72 = no O1. SEVERE extension = -4. Apply -4 alone.
+- Recovery exception: 6M negative + 1M positive, OR 6M < +5% AND 1M > 6x abs(6M) → reduce category by one tier
 - IPO exception: <100 trading days → halve the penalty (round down)
-- **Fundamental-Catalyst Exception:** If EXTREME/HIGH AND major catalyst in last 60 days (contract >10% revenue, >=3 upgrades in 30d, revenue acceleration >5pp, major product launch) → reduce category by one tier. Note: "EXTENSION CATALYST EXCEPTION: {catalyst}."
-- Note in output: "EXTENSION OVERRIDE: {CATEGORY} (1M: +{X}%, 3M: +{Y}%) → {modifier applied}"
+- **Fundamental-Catalyst Exception:** If EXTREME/SEVERE/HIGH AND major catalyst in last 60 days → reduce category by one tier. Allow -2 tiers for 3+ distinct catalysts (cap at MODERATE). Note: "EXTENSION CATALYST EXCEPTION: {catalyst}."
+- Note in output: "EXTENSION OVERRIDE: {CATEGORY} (1M: +{X}%, 3M: +{Y}%, mktcap factor: {F}x) → {modifier applied}"
 
 **Override 6: Earnings Catalyst Modifier** (only if earnings within 7 days)
 - Compute Earnings Beat Probability (EBP): base = beats/total_quarters + 10% if estimate revisions positive + 5% if avg surprise > 10%. Cap at 95%.
@@ -169,9 +181,17 @@ Report both in the output. Apply the Quality-Timing signal matrix from scoring-r
   - Subtract 5. Note: "SELL-THE-NEWS: Beat on all metrics but stock down {X}%. Further compression likely."
 - IF 6M return < -15% AND earnings beat: Note: "Stock in distribution phase despite strong fundamentals."
 
+**Override 8: Multi-Agent Consensus**
+- From `multi_agent_analysis` results in sentiment report.
+- Unanimous SELL (net score <= -4): subtract 3. Unanimous BUY (net score >= +4): add 2.
+- If tool unavailable: skip, note "OVERRIDE 8: NOT TRIGGERED — multi-agent tool unavailable."
+
 **Quality-Timing Safety Check:**
-- After all overrides, if composite < 40 (SELL territory) BUT Quality Score >= 60: OVERRIDE to HOLD (40).
-- Note: "QUALITY FLOOR: High-quality business (Quality {X}) prevents SELL signal. Bad timing, not bad business."
+- After all overrides, if composite < 40 (SELL territory) BUT Quality Score >= 60: check dimension gate.
+- **Dimension gate:** Quality Floor fires ONLY if ALL Quality sub-dimensions (Fundamental, Valuation, Smart Money, Macro) >= 4. If Valuation <= 3 OR RSI >= 85 OR Extension = EXTREME: suppress Quality Floor.
+- If gate passes: OVERRIDE to HOLD (40). Note: "QUALITY FLOOR: High-quality business (Quality {X}) prevents SELL signal. Bad timing, not bad business."
+- If gate fails: Allow SELL. Note: "QUALITY FLOOR SUPPRESSED: {dimension} <= 3 / RSI >= 85 / Extension EXTREME."
+- Track `quality_floor_activated_date` and `quality_floor_price` in scores.csv for time decay.
 
 ### Step 4 — Determine signal
 
@@ -217,13 +237,15 @@ Write full analysis to `reports/{SYMBOL}_{YYYY-MM-DD}.md`
 ### Append to scores.csv
 Append row to `reports/scores.csv`:
 ```
-{DATE},{SYMBOL},{COMPOSITE},{SIGNAL},{TECH},{FUND},{VAL},{SENT},{SMART},{MACRO},{BT},{RISK},{DATA_PCT}
+{DATE},{SYMBOL},{COMPOSITE},{SIGNAL},{TECH},{FUND},{VAL},{SENT},{SMART},{MACRO},{BT},{RISK},{DATA_PCT},{PRICE},{QUALITY},{TIMING},{QF_DATE},{QF_PRICE}
 ```
 
 If `reports/scores.csv` doesn't exist, create it with header:
 ```
-date,symbol,composite,signal,technical,fundamental,valuation,sentiment,smart_money,macro,backtest,risk,data_completeness
+date,symbol,composite,signal,technical,fundamental,valuation,sentiment,smart_money,macro,backtest,risk,data_completeness,price_at_scoring,quality_score,timing_score,quality_floor_date,quality_floor_price
 ```
+
+**Staleness rule:** Scores older than 3 calendar days OR with >5% price movement from `price_at_scoring` should be treated as STALE. When displaying prior scores, check staleness and flag accordingly.
 
 ### Display compact card
 

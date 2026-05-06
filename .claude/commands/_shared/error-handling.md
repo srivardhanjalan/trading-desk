@@ -27,22 +27,57 @@ Do NOT treat empty responses as failures. Log as "No [data type] for SYMBOL" and
 
 ---
 
-## Exchange-Wide Scanner Post-Filtering
+## Bulk/Exchange-Wide API Post-Filter Protocol
 
-`smart_volume_scanner` and `advanced_candle_pattern` scan the entire exchange, not per-symbol. After receiving results:
-1. Search the response for the target symbol
-2. If found: extract and report that symbol's data
-3. If not found: note "No unusual volume/pattern detected for SYMBOL" — this is neutral, not negative
+**ALL bulk or exchange-wide API calls MUST include an explicit post-filter step for the target symbol.** This applies to:
+- `smart_volume_scanner`, `advanced_candle_pattern` — scan entire exchange
+- `getEarningsCalendar` — returns ALL companies' earnings (no symbol filter)
+- `getEarningsSurprisesBulk` — returns bulk surprise data by year
+- `getSectorPerformanceSnapshot` — sector-level, not symbol-level
+- Any other API that returns data for multiple symbols
+
+**Post-filter steps (MANDATORY):**
+1. Search the response for the target symbol (exact match, case-insensitive)
+2. If found: extract ONLY that symbol's data, discard the rest
+3. If not found: note "No [data type] detected for SYMBOL" — this is neutral, not negative
+4. **Never report unfiltered bulk data as if it were symbol-specific**
 
 ---
 
 ## Data Completeness Tracking
 
-Track: `successful_with_data / total_attempted` for each phase group.
+Track completeness at the **individual API call level**, not phase level.
+
+**API Call Manifest (REQUIRED in every report):**
+Each report must include a call manifest table at the end:
+
+```
+## API Call Manifest
+| # | Tool | Status | Notes |
+|---|------|--------|-------|
+| 1 | getCompanyProfile | OK | |
+| 2 | getTreasuryRates | OK | cached |
+| 3 | getOptionChain (calls) | OK | 47 contracts |
+| 4 | getOptionChain (puts) | EMPTY | No puts available |
+| 5 | getFinancialRatiosTTM | 402 | Outside FMP tier |
+...
+Data Completeness: {successful_calls}/{total_calls} = {X}%
+```
+
+**Completeness = successful_calls / total_calls** (not phase-level approximation).
 
 - Display completeness % in output
 - If data completeness < 60%: Force HOLD, add "Low data confidence" warning
 - If fewer than 5 of 8 dimensions are scored: Force HOLD, add "INSUFFICIENT DIMENSIONS"
+
+---
+
+## WebSearch Ticker Validation
+
+**Short tickers (1-2 characters)** are ambiguous in web searches (e.g., "BE stock" returns unrelated results, "AI stock" returns general AI articles). For tickers with 1-2 characters:
+- ALWAYS include the full company name in WebSearch queries: `"{COMPANY_NAME}" ({SYMBOL}) stock {query_terms}`
+- Example: `"C3.ai" (AI) stock earnings 2026` instead of `AI stock earnings 2026`
+- Example: `"Bloom Energy" (BE) stock short interest` instead of `BE stock short interest`
 
 ---
 

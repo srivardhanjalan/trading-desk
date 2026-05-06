@@ -53,11 +53,11 @@ Calculate these 10 metrics from the chain data:
 | **IV Skew** | Avg put IV (ATM +/-2 strikes) - avg call IV (ATM +/-2 strikes). Positive = fear premium. >5% = significant |
 | **Max Pain** | Strike where sum of all (call OI * max(0, strike-S) + put OI * max(0, S-strike)) is minimized across all strikes S. Price magnet near expiry. |
 | **IV vs HV** | Avg chain IV / HV from getStandardDeviation. >1.5 = expects big move. <0.8 = complacent. ~1.0 = normal |
-| **Expected Move** | ATM call premium + ATM put premium (nearest expiry straddle). Use mid-price (average of bid and ask) for ATM call and put. Expected move = call_mid + put_mid. Also report the IV-based expected move: Price × ATM_IV × sqrt(DTE/365). Report both. E.g., "$12.50 = +/-7.8%" |
+| **Expected Move** | ATM call premium + ATM put premium (nearest expiry straddle). Use mid-price (average of bid and ask) for ATM call and put. Expected move = call_mid + put_mid. Also report the IV-based expected move: Price × ATM_IV × sqrt(DTE/365). Report both. E.g., "$12.50 = +/-7.8%". **Historical calibration:** Pull last 8 earnings via `getEarningsReports` (from Phase 9 data or standalone call). Compute avg absolute 1-day post-earnings move. Report `move_ratio = expected_move / avg_historical_move`. If move_ratio > 2.0: "IV INFLATED — market pricing 2x historical move." If < 0.5: "IV DEFLATED — market complacent vs history." |
 | **Unusual Activity** | Contracts where today's volume > 5x open interest. Report: strike, expiry, direction, vol/OI ratio |
 | **Most Active Strikes** | Top 3 call and top 3 put strikes by volume. Clustering = institutional price targets |
 | **Premium Trend** | From `get_option_bars`: 7-day price change % for top 3 contracts. Rising/falling conviction |
-| **Net Delta Exposure** | sum(call OI * call delta) - sum(put OI * abs(put delta)). Positive = market net long. Magnitude = conviction |
+| **Net Delta Exposure** | **Preferred:** Call/Put Volume-Weighted Delta Skew = (sum(call volume × call delta) - sum(put volume × abs(put delta))) / total volume. Positive = market net long. **Fallback (only if OI confirmed present):** sum(call OI × call delta) - sum(put OI × abs(put delta)). Volume-weighted is more reliable as it reflects current-day conviction rather than accumulated OI from stale positions. |
 
 **OI availability check (REQUIRED):** Before computing metrics 2 (P/C OI Ratio), 4 (Max Pain), 6 (Unusual Activity — 5x OI threshold), and 10 (Net Delta Exposure), verify that the `get_option_chain` response contains open interest data. If OI is absent, report these 4 metrics as 'N/A — OI not available from data source' rather than estimating or silently redefining them. Only compute these metrics when OI data is confirmed present in the response.
 
@@ -77,7 +77,7 @@ Calculate these 10 metrics from the chain data:
 
 **Data provenance note:** WebSearch for Twitter/StockTwits returns articles ABOUT platform sentiment, not actual platform data. Always label the source accurately: 'Twitter/X (via news reports)' or 'StockTwits (via editorial summary)' — never imply direct platform access. If actual bull/bear ratios from the platform are not obtainable, note this limitation. If the `market_sentiment` MCP tool returns platform-specific data, that IS first-party data and should be labeled accordingly.
 
-- `mcp__financial-modeling-prep__searchInsiderTrades` with symbol=$ARGUMENTS, limit=10 — insider buys/sells with $ amounts. Derive net buy/sell ratio. Weight by: C-suite buys >$1M = strong signal.
+- `mcp__financial-modeling-prep__searchInsiderTrades` with symbol=$ARGUMENTS, limit=10 — insider buys/sells with $ amounts. **Apply recency weighting:** trades within 30d = 1.0x weight, 31-90d = 0.7x, 91-180d = 0.4x, >180d = 0.2x (only trades within 90 days affect score floor/ceiling). Derive net buy/sell ratio. Weight by: C-suite buys >$1M OR >0.5% of market cap (whichever is lower for <$5B companies) = strong signal.
 - `mcp__financial-modeling-prep__getInsiderTradeStatistics` with symbol=$ARGUMENTS — pre-computed net insider buying/selling ratio and trend. Complements raw trade data.
 - `mcp__financial-modeling-prep__getLatestInsiderTrading` with symbol=$ARGUMENTS, limit=5 — most recent insider transactions. May capture trades not yet in searchInsiderTrades.
 - **10b5-1 verification (REQUIRED):** FMP does not return 10b5-1 plan status. After getting insider trades, run `WebSearch` query: `{SYMBOL} "{INSIDER_NAME}" 10b5-1 plan {year} SEC Form 4` for each insider with sales >$1M. The SEC Form 4 footnotes explicitly state whether sales were under a pre-arranged Rule 10b5-1 plan and the plan adoption date. Report as **confirmed 10b5-1** (with adoption date) or **discretionary sale** — never say "likely."
@@ -86,8 +86,8 @@ Calculate these 10 metrics from the chain data:
 - `mcp__financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=5 — official corporate press releases. Primary source for contract announcements, product launches, partnerships. Feeds into Extension Catalyst Exception check.
 - `mcp__financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 30 days} — returns ALL companies' earnings (no symbol filter). Must search response for $ARGUMENTS. Alternatively, use `getEarningsReports` from Phase 9 for per-symbol dates.
 - `mcp__alpaca__get_corporate_actions` with symbol=$ARGUMENTS — upcoming splits, dividends, spin-offs, mergers within 30 days. Reverse split could trigger stop-losses. Feeds into Risk scoring.
-- `mcp__financial-modeling-prep__getAftermarketQuote` with symbol=$ARGUMENTS — after-hours bid/ask, price, volume. **Critical for earnings reaction detection.** Shows immediate post-earnings institutional sentiment before next open.
-- `mcp__financial-modeling-prep__getAftermarketTrade` with symbol=$ARGUMENTS — AH trade prices, sizes, timestamps. **Large block trades in AH = institutional conviction.** Multiple 10K+ share blocks at increasing prices = strong accumulation signal.
+- `mcp__financial-modeling-prep__getAftermarketQuote` with symbol=$ARGUMENTS — after-hours bid/ask, price, volume. **Only call when market is CLOSED** (check `is_open` from Phase 0). During market hours, skip or flag "STALE AH DATA." **Critical for earnings reaction detection.** Shows immediate post-earnings institutional sentiment before next open.
+- `mcp__financial-modeling-prep__getAftermarketTrade` with symbol=$ARGUMENTS — AH trade prices, sizes, timestamps. **Only call when market is CLOSED.** **Large block trades in AH = institutional conviction.** Multiple 10K+ share blocks at increasing prices = strong accumulation signal.
 - `mcp__financial-modeling-prep__searchStockNews` with symbol=$ARGUMENTS, limit=5 — symbol-specific news search. More targeted than general `getStockNews` feed. Better hit rate for sentiment analysis.
 - `mcp__financial-modeling-prep__searchPressReleases` with symbol=$ARGUMENTS, limit=5 — symbol-specific press releases. Catches pre-earnings guidance revisions, contract wins, partnership announcements. **Feeds into Extension Catalyst Exception.**
 - `mcp__financial-modeling-prep__getFilingsBySymbol` with symbol=$ARGUMENTS, limit=5 — recent SEC filings (8-K, 10-Q, etc.). **8-K filings signal material events** — guidance changes, exec departures, major contracts. A cluster of 8-Ks before earnings = something is happening.
@@ -144,7 +144,7 @@ Empty = "No institutional data this quarter" (normal for micro-caps).
 
 - Call `mcp__tradingview-analysis__compare_strategies` with symbol=$ARGUMENTS, period="1y" — ranked leaderboard: RSI, Bollinger, MACD, EMA Cross, Supertrend, Donchian. **Extract Buy-and-Hold return from the response** (usually included as benchmark). If not in response, compute from Phase 1 price change data (1Y return).
 - Call `mcp__tradingview-analysis__backtest_strategy` with symbol=$ARGUMENTS, strategy={best from compare_strategies}, include_trade_log=false — win rate, Sharpe, max drawdown, profit factor, **total trade count**
-- Call `mcp__tradingview-analysis__walk_forward_backtest_strategy` with symbol=$ARGUMENTS, strategy={best strategy}, period="2y" — overfit validation on unseen data. **Report robustness score and out-of-sample trade count.**
+- Call `mcp__tradingview-analysis__walk_forward_backtest_strategy` with symbol=$ARGUMENTS, strategy={best strategy}, period="3y" — overfit validation on unseen data. **Use 3y (not 2y) to ensure in-sample and out-of-sample windows do not overlap.** Report robustness score and out-of-sample trade count.
 
 **Scoring gates (apply in order during Phase 16):**
 1. **Trade count gate:** <5 trades → cap score at 2. 5-9 → cap 4. 10-14 → cap 6. ≥15 → no cap.
@@ -188,20 +188,20 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 - Signal: {bullish/bearish/neutral} ({X}% bullish)
 - Key themes: {summary}
 
-### Twitter/X (weight: 0.20)
+### Twitter/X (weight: 0.10)
 - Signal: {bullish/bearish/neutral/unavailable}
 - Key themes: {summary}
 
-### StockTwits (weight: 0.20)
+### StockTwits (weight: 0.10)
 - Signal: {bullish/bearish/neutral/unavailable}
 - Bull/Bear ratio: {X}% bulls
 
-### News NLP (weight: 0.20)
+### News NLP (weight: 0.30)
 - Articles analyzed: X
 - Positive: X | Neutral: X | Negative: X
 - Key finding: {most impactful article summary}
 
-### Analyst Events (weight: 0.10)
+### Analyst Events (weight: 0.20)
 - Recent upgrades: X | Downgrades: X
 - Notable: {specific events}
 
