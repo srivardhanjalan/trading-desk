@@ -65,11 +65,12 @@ Calculate these 10 metrics from the chain data:
 
 ## Phase 11: Sentiment & Insider/Political Activity
 
-### Step 1 — Multi-platform sentiment + news (10-12 calls, parallel)
+### Step 1 — Multi-platform sentiment + news (15-18 calls, parallel)
 
 - `mcp__tradingview-analysis__market_sentiment` with symbol=$ARGUMENTS, market="stocks" — Reddit sentiment across r/stocks, r/wsb, r/investing, r/options
 - `mcp__tradingview-analysis__multi_agent_analysis` with symbol=$ARGUMENTS, exchange from Phase 1, timeframe="1D" — 3-agent debate: Technical + Sentiment + Risk Manager
-- `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=5 — headlines with URLs (URLs used in Step 2)
+- `mcp__tradingview-analysis__financial_news` with symbol=$ARGUMENTS, category="stocks", limit=10 — real-time RSS feeds from Reuters, CoinDesk, etc. Captures breaking news faster than FMP indexing.
+- `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=10 — headlines with URLs (URLs used in Step 2)
 - `WebSearch` query: "$ARGUMENTS stock twitter sentiment {current_year}" — Twitter/X sentiment (fastest-moving platform)
 - `WebSearch` query: "$ARGUMENTS site:stocktwits.com" — StockTwits sentiment (has built-in bullish/bearish tagging)
 - `WebSearch` query: "$ARGUMENTS short interest FINRA {current_year}" — short interest % of float. High SI + approaching earnings = squeeze catalyst. SI data is freely available from FINRA/Nasdaq but not in FMP.
@@ -83,32 +84,35 @@ Calculate these 10 metrics from the chain data:
 - **10b5-1 verification (REQUIRED):** FMP does not return 10b5-1 plan status. After getting insider trades, run `WebSearch` query: `{SYMBOL} "{INSIDER_NAME}" 10b5-1 plan {year} SEC Form 4` for each insider with sales >$1M. The SEC Form 4 footnotes explicitly state whether sales were under a pre-arranged Rule 10b5-1 plan and the plan adoption date. Report as **confirmed 10b5-1** (with adoption date) or **discretionary sale** — never say "likely."
 - `mcp__financial-modeling-prep__getSenateTrades` with symbol=$ARGUMENTS — always called. Empty = "No Senate activity"
 - `mcp__financial-modeling-prep__getHouseTrades` with symbol=$ARGUMENTS — always called. Empty = "No House activity"
-- `mcp__financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=5 — official corporate press releases. Primary source for contract announcements, product launches, partnerships. Feeds into Extension Catalyst Exception check.
+- `mcp__financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=10 — official corporate press releases. Primary source for contract announcements, product launches, partnerships. Feeds into Extension Catalyst Exception check.
+- `mcp__financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS, limit=10 — analyst price target changes with article links. Shows WHICH analysts changed targets, old vs new price, and the reasoning. Critical for detecting recent upgrades/downgrades that move the stock.
+- `mcp__financial-modeling-prep__getStockGradeNews` with symbol=$ARGUMENTS, limit=10 — analyst rating changes (upgrade/downgrade/initiation). Shows grading firm, previous vs new grade, action taken. Feeds directly into Analyst sentiment sub-score.
 - `mcp__financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 30 days} — returns ALL companies' earnings (no symbol filter). Must search response for $ARGUMENTS. Alternatively, use `getEarningsReports` from Phase 9 for per-symbol dates.
 - `mcp__alpaca__get_corporate_actions` with symbol=$ARGUMENTS — upcoming splits, dividends, spin-offs, mergers within 30 days. Reverse split could trigger stop-losses. Feeds into Risk scoring.
 - `mcp__financial-modeling-prep__getAftermarketQuote` with symbol=$ARGUMENTS — after-hours bid/ask, price, volume. **Only call when market is CLOSED** (check `is_open` from Phase 0). During market hours, skip or flag "STALE AH DATA." **Critical for earnings reaction detection.** Shows immediate post-earnings institutional sentiment before next open.
 - `mcp__financial-modeling-prep__getAftermarketTrade` with symbol=$ARGUMENTS — AH trade prices, sizes, timestamps. **Only call when market is CLOSED.** **Large block trades in AH = institutional conviction.** Multiple 10K+ share blocks at increasing prices = strong accumulation signal.
-- `mcp__financial-modeling-prep__searchStockNews` with symbol=$ARGUMENTS, limit=5 — symbol-specific news search. More targeted than general `getStockNews` feed. Better hit rate for sentiment analysis.
+- `mcp__financial-modeling-prep__searchStockNews` with symbol=$ARGUMENTS, limit=10 — symbol-specific news search. More targeted than general `getStockNews` feed. Better hit rate for sentiment analysis.
 - `WebSearch` query: "$ARGUMENTS stock news {current_year}" — **MANDATORY companion to searchStockNews.** Captures analyst initiations, blog commentary, CNBC/Bloomberg articles, and breaking news that FMP may not index. **ALWAYS use BOTH FMP searchStockNews AND WebSearch for news — never one without the other.**
-- `mcp__financial-modeling-prep__searchPressReleases` with symbol=$ARGUMENTS, limit=5 — symbol-specific press releases. Catches pre-earnings guidance revisions, contract wins, partnership announcements. **Feeds into Extension Catalyst Exception.**
-- `mcp__financial-modeling-prep__getFilingsBySymbol` with symbol=$ARGUMENTS, limit=5 — recent SEC filings (8-K, 10-Q, etc.). **8-K filings signal material events** — guidance changes, exec departures, major contracts. A cluster of 8-Ks before earnings = something is happening.
+- `mcp__financial-modeling-prep__searchPressReleases` with symbol=$ARGUMENTS, limit=10 — symbol-specific press releases. Catches pre-earnings guidance revisions, contract wins, partnership announcements. **Feeds into Extension Catalyst Exception.**
+- `mcp__financial-modeling-prep__getFilingsBySymbol` with symbol=$ARGUMENTS, limit=10 — recent SEC filings (8-K, 10-Q, etc.). **8-K filings signal material events** — guidance changes, exec departures, major contracts. A cluster of 8-Ks before earnings = something is happening.
 
 **Crypto route:** `market_sentiment` + `multi_agent_analysis` + `mcp__financial-modeling-prep__searchCryptoNews` + `WebSearch` Twitter. Skip insider/congressional/corporate actions.
 
-### Step 2 — Full-text news NLP (2-3 calls, sequential after Step 1)
+### Step 2 — Full-text news NLP (4-5 calls, sequential after Step 1)
 
-- Take the top 2-3 news article URLs from `getStockNews` response
+- Take the top 4-5 news article URLs from `getStockNews` and `searchStockNews` responses (deduplicate by URL, prioritize Tier 1 sources)
 - Call `WebFetch` on each URL
 - For each article, analyze: key facts, sentiment (positive/negative/neutral), impact magnitude (high/medium/low), time horizon
 - Apply source credibility tiers: Tier 1 (Reuters, Bloomberg, WSJ) = 1.0x weight, Tier 2 (CNBC, Yahoo Finance) = 0.8x, Tier 3 (blogs, unknown) = 0.5x
 
 **Compliance checklist (ALL required):**
-1. [ ] WebFetch called on at least 2 article URLs
+1. [ ] WebFetch called on at least 3 article URLs (increased from 2)
 2. [ ] Per-article breakdown: key facts, sentiment, impact magnitude, time horizon
 3. [ ] Source credibility tier assigned to each article
 4. [ ] If WebFetch returns 403/paywall, note 'PAYWALLED — sentiment from headline only (lower confidence)'
 5. [ ] At least 1 Tier 1 source (Reuters, Bloomberg, WSJ) sought via WebSearch
-If fewer than 3 of 5 items are completed, add 'NEWS NLP: INCOMPLETE' warning to output.
+6. [ ] Analyst grade/price target news from `getStockGradeNews` and `getPriceTargetNews` cross-referenced with article sentiment
+If fewer than 4 of 6 items are completed, add 'NEWS NLP: INCOMPLETE' warning to output.
 
 **Why full-text matters:** Headlines are often clickbait. A "Stock drops 5%" headline might be planned dilution (bad) or profit-taking after +30% run (neutral). Only the article body reveals the actual signal.
 

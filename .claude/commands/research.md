@@ -17,12 +17,15 @@ For each result set: classify sentiment (bullish/bearish/neutral), extract key t
 
 ---
 
-## Step 2: Full Article NLP (3-4 WebFetch calls, sequential)
+## Step 2: Full Article NLP (4-5 WebFetch calls, sequential)
 
-- `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=5 — get article URLs
-- `mcp__financial-modeling-prep__searchStockNews` with symbols=$ARGUMENTS, limit=5 — symbol-specific news (more targeted)
+- `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=10 — get article URLs
+- `mcp__financial-modeling-prep__searchStockNews` with symbols=$ARGUMENTS, limit=10 — symbol-specific news (more targeted)
+- `mcp__financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS, limit=10 — analyst price target changes with reasoning
+- `mcp__financial-modeling-prep__getStockGradeNews` with symbol=$ARGUMENTS, limit=10 — analyst rating changes (upgrade/downgrade/initiation)
+- `mcp__tradingview-analysis__financial_news` with symbol=$ARGUMENTS, category="stocks", limit=10 — real-time RSS feeds (Reuters, CoinDesk)
 - `WebSearch` query: "$ARGUMENTS stock news {current_year}" — **MANDATORY companion to FMP news calls.** Captures analyst initiations, blog commentary, and breaking news that FMP may not index. **ALWAYS use BOTH FMP news tools AND WebSearch — never one without the other.**
-- `WebFetch` the top 3-4 article URLs for full text
+- `WebFetch` the top 4-5 article URLs for full text (deduplicate, prioritize Tier 1 sources)
 
 For each article analyze:
 - **Key facts:** What happened? What numbers are cited?
@@ -35,7 +38,7 @@ For each article analyze:
 
 ## Step 3: Company Press Releases (1 FMP call)
 
-- `mcp__financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=10 — official company announcements
+- `mcp__financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=15 — official company announcements
 
 Analyze for: product launches, partnerships, guidance updates, executive changes, legal matters.
 

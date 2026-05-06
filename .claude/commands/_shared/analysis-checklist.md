@@ -139,12 +139,13 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] Premium Trend (7-day % change)
 - [ ] Net Delta Exposure (volume-weighted delta skew)
 
-### Phase 11: Sentiment & Insider Activity (~21 parallel calls)
+### Phase 11: Sentiment & Insider Activity (~27 parallel calls)
 
 **Multi-platform sentiment:**
 - [ ] `TV-Analysis: market_sentiment` — Reddit sentiment
 - [ ] `TV-Analysis: multi_agent_analysis` — 3-agent debate (Tech + Sentiment + Risk)
-- [ ] `FMP: getStockNews` (limit=5) — headlines with URLs
+- [ ] `TV-Analysis: financial_news` (symbol, limit=10) — real-time RSS feeds (Reuters, CoinDesk)
+- [ ] `FMP: getStockNews` (limit=10) — headlines with URLs
 - [ ] `WebSearch:` "{SYMBOL} stock twitter sentiment {year}"
 - [ ] `WebSearch:` "{SYMBOL} site:stocktwits.com"
 - [ ] `WebSearch:` "{SYMBOL} short interest FINRA {year}"
@@ -161,21 +162,26 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `FMP: getHouseTrades` — House trading activity
 
 **Corporate & news:**
-- [ ] `FMP: getPressReleases` (limit=5) — official press releases
+- [ ] `FMP: getPressReleases` (limit=10) — official press releases
+- [ ] `FMP: getPriceTargetNews` (symbol, limit=10) — analyst price target changes with reasoning
+- [ ] `FMP: getStockGradeNews` (symbol, limit=10) — analyst rating changes (upgrade/downgrade/initiation)
 - [ ] `FMP: getEarningsCalendar` (next 30 days) — POST-FILTER for symbol
 - [ ] `Alpaca: get_corporate_actions` — splits, dividends, mergers
 - [ ] `FMP: getAftermarketQuote` — AH price (ONLY when market CLOSED)
 - [ ] `FMP: getAftermarketTrade` — AH trades (ONLY when market CLOSED)
-- [ ] `FMP: searchStockNews` (limit=5) — symbol-specific news
+- [ ] `FMP: searchStockNews` (limit=10) — symbol-specific news
 - [ ] `WebSearch:` "{SYMBOL} stock news {year}" — **MANDATORY companion to searchStockNews. ALWAYS use BOTH.**
-- [ ] `FMP: searchPressReleases` (limit=5) — symbol-specific press releases
-- [ ] `FMP: getFilingsBySymbol` (limit=5) — recent SEC filings (8-K, 10-Q)
+- [ ] `FMP: searchPressReleases` (limit=10) — symbol-specific press releases
+- [ ] `FMP: getFilingsBySymbol` (limit=10) — recent SEC filings (8-K, 10-Q)
 
 **News NLP (sequential after Step 1):**
 - [ ] `WebFetch` article 1 — extract: key facts, sentiment, impact, time horizon
 - [ ] `WebFetch` article 2 — same analysis
-- [ ] `WebFetch` article 3 — same analysis (if available)
+- [ ] `WebFetch` article 3 — same analysis
+- [ ] `WebFetch` article 4 — same analysis (if available)
+- [ ] `WebFetch` article 5 — same analysis (if available, prioritize Tier 1 sources)
 - [ ] Assign source credibility tiers: Tier 1 (Reuters/Bloomberg/WSJ) = 1.0x, Tier 2 (CNBC/Yahoo) = 0.8x, Tier 3 = 0.5x
+- [ ] Cross-reference analyst grade/price target news with article sentiment
 
 ### Phase 12: Institutional Ownership (2 parallel calls)
 - [ ] `FMP: getPositionsSummary` (adjusted quarter for 13F lag) — holders, share changes
