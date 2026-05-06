@@ -167,6 +167,7 @@ Complete 16-phase stock analysis pipeline. ~75-90 tool calls across 4 MCP server
 - [ ] `FMP: getAftermarketQuote` — AH price (ONLY when market CLOSED)
 - [ ] `FMP: getAftermarketTrade` — AH trades (ONLY when market CLOSED)
 - [ ] `FMP: searchStockNews` (limit=5) — symbol-specific news
+- [ ] `WebSearch:` "{SYMBOL} stock news {year}" — **MANDATORY companion to searchStockNews. ALWAYS use BOTH.**
 - [ ] `FMP: searchPressReleases` (limit=5) — symbol-specific press releases
 - [ ] `FMP: getFilingsBySymbol` (limit=5) — recent SEC filings (8-K, 10-Q)
 

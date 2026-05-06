@@ -20,6 +20,8 @@ For each result set: classify sentiment (bullish/bearish/neutral), extract key t
 ## Step 2: Full Article NLP (3-4 WebFetch calls, sequential)
 
 - `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=5 — get article URLs
+- `mcp__financial-modeling-prep__searchStockNews` with symbols=$ARGUMENTS, limit=5 — symbol-specific news (more targeted)
+- `WebSearch` query: "$ARGUMENTS stock news {current_year}" — **MANDATORY companion to FMP news calls.** Captures analyst initiations, blog commentary, and breaking news that FMP may not index. **ALWAYS use BOTH FMP news tools AND WebSearch — never one without the other.**
 - `WebFetch` the top 3-4 article URLs for full text
 
 For each article analyze:
