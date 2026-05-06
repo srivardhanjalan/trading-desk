@@ -48,6 +48,28 @@ Use markdown tables throughout for clean, consistent rendering. All sections use
 | **Composite** | **{RAW}/100** | | | Overrides: {OVERRIDES_APPLIED} → **{FINAL}/100** |
 ```
 
+After the scores table, add the **Quality-Timing** and **Momentum Extension** rows:
+
+```
+### Quality vs Timing
+| Sub-Score | Value | Components | Guidance |
+|-----------|------:|------------|----------|
+| **Quality** | {Q}/100 | Fund {F} × 0.30 + Val {V} × 0.25 + Smart {SM} × 0.25 + Macro {M} × 0.20 | "Should I own this?" |
+| **Timing** | {T_SCORE}/100 | Tech {T} × 0.35 + Risk {R} × 0.25 + Sent {S} × 0.20 + BT {BT} × 0.20 | "Should I buy now?" |
+| **Matrix** | | Quality {Q_LABEL} + Timing {T_LABEL} | → {MATRIX_SIGNAL} |
+```
+
+If pre-earnings weights active, add: `⚡ PRE-EARNINGS WEIGHTS: Earnings in {N} days. Fund/Sentiment emphasized.`
+
+```
+### Momentum
+| Period | 1D | 5D | 1M | 3M | 6M | 1Y |
+|--------|---:|---:|---:|---:|---:|---:|
+| Change | {1D}% | {5D}% | {1M}% | {3M}% | {6M}% | {1Y}% |
+
+**Extension Risk: {CATEGORY}** — {1M_DESCRIPTION}. Override 5: {MODIFIER_APPLIED}.
+```
+
 Bar format: `████████░░` for 8/10 — use `█` filled, `░` empty, 10 chars.
 Key Driver: one-line reason for the score (e.g. "4/5 TF bullish, RSI 79 overbought").
 
@@ -143,8 +165,9 @@ If both empty: `No congressional trading activity detected.`
 
 **Backtest scoring gates (from rubric, apply in order):**
 1. Trade count gate: <5 trades → cap 2, 5-9 → cap 4, 10-14 → cap 6, 15+ → no cap
-2. Buy-and-hold benchmark: if best strategy < B&H return → subtract 2 (min 1)
-3. Walk-forward: if robustness = 0 or OVERFITTED → flag warning
+2. Buy-and-hold benchmark (revised): B&H > 100% → penalty WAIVED. B&H > 50% + strategy profitable → -1 only. Strategy loses in rising market → full -2.
+3. Walk-forward: if robustness < 0.3 or OVERFITTED → halve backtest effective weight + flag warning
+4. Adaptive weight: effective backtest weight adjusted per trade count (see rubric). Redistributed weight goes proportionally to other dimensions.
 
 ### Trade Setup
 
@@ -210,9 +233,9 @@ Same structure but omit: Fund, Val, Macro rows. Show crypto-specific Smart Money
 {MARKET_HOURS_HEADER}
 FMP Budget: {USED}/{LIMIT} calls today
 
-| # | Symbol | Price | 1D% | Score | Signal | Tech | Fund | Val | Risk | Coverage | Key Signal |
-|---|--------|-------|-----|-------|--------|------|------|-----|------|----------|------------|
-| 1 | AMD    | $160  | +2% | 72    | BUY    | 9    | 8    | 8   | 4    | Full     | MACD cross |
+| # | Symbol | Price | 1D% | 1M% | Ext | Score | Signal | Tech | Fund | Val | Risk | Coverage | Key Signal |
+|---|--------|-------|-----|-----|-----|-------|--------|------|------|-----|------|----------|------------|
+| 1 | AMD    | $160  | +2% | +12%| LOW | 72    | BUY    | 9    | 8    | 8   | 4    | Full     | MACD cross |
 ...
 
 Top Picks: {TOP_3_WITH_REASONS}

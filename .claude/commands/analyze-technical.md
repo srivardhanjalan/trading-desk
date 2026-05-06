@@ -54,20 +54,27 @@ Record the RSI value — it's used for overbought/oversold overrides in Phase 16
 
 ## Phase 4: Volume & Smart Money
 
-**2 calls, parallel:**
+**4 calls, parallel:**
 - Call `mcp__financial-modeling-prep__getShareFloat` with symbol=$ARGUMENTS — extract float size, short interest %, short ratio
 - Call `mcp__tradingview-analysis__smart_volume_scanner` with the exchange from Phase 1
+- Call `mcp__tradingview-analysis__volume_confirmation_analysis` with symbol=$ARGUMENTS and exchange from Phase 1 — confirms whether price advance/decline is backed by volume. Volume-confirmed moves are more reliable. Feeds into Volume Direction Modifier for Technical scoring.
+- Call `mcp__tradingview-analysis__consecutive_candles_scan` with exchange from Phase 1 and timeframe="1D" — detects sequences of consecutive bullish/bearish candles. 5+ consecutive bullish candles before earnings = momentum confirmation signal.
 
 **Post-filter `smart_volume_scanner`:** This returns exchange-wide results. Search the response for $ARGUMENTS. If found, extract that symbol's unusual volume data. If not found, note "No unusual volume detected for $ARGUMENTS" (neutral signal, not negative).
 
+**Post-filter `consecutive_candles_scan`:** Search results for $ARGUMENTS. Record consecutive candle count and direction if found.
+
 ---
 
-## Phase 5: Candle Patterns
+## Phase 5: Candle Patterns & Bollinger Analysis
 
-**1 call:**
+**2 calls, parallel:**
 - Call `mcp__tradingview-analysis__advanced_candle_pattern` with exchange from Phase 1 and timeframe="1D"
+- Call `mcp__tradingview-analysis__bollinger_scan` with exchange from Phase 1 — identifies stocks in Bollinger squeeze (low volatility → breakout setup) or Bollinger Walk (riding upper/lower band = strong trend). A stock in Bollinger Walk UP = bullish momentum signal, NOT overbought exhaustion.
 
-**Post-filter:** Search results for $ARGUMENTS. If found, extract active candle patterns (name, type: reversal/continuation, reliability). If not found, note "No significant candle patterns for $ARGUMENTS."
+**Post-filter advanced_candle_pattern:** Search results for $ARGUMENTS. If found, extract active candle patterns (name, type: reversal/continuation, reliability). If not found, note "No significant candle patterns for $ARGUMENTS."
+
+**Post-filter bollinger_scan:** Search for $ARGUMENTS. If in Bollinger Walk UP, record as trend confirmation (supports ADX-conditional RSI interpretation). If in squeeze, record as pending breakout.
 
 ---
 

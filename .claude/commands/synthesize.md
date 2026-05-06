@@ -15,15 +15,28 @@ If any report file is missing, note which phases are unavailable and reduce data
 
 ## Phase 15: Risk Quantification & Position Sizing
 
-**3 calls (2 Alpaca + 1 WebSearch, parallel):**
+**4 calls (2 Alpaca + 1 FMP + 1 WebSearch, parallel):**
 
 - Call `mcp__alpaca__get_account_info` — current equity, buying power, cash
 - Call `mcp__alpaca__get_open_position` with symbol=$ARGUMENTS — check if already held, current P&L, quantity
+- Call `mcp__financial-modeling-prep__getStockPriceChange` with symbol=$ARGUMENTS — multi-period price performance (1D, 5D, 1M, 3M, 6M, 1Y) for momentum extension scoring
 - Call `WebSearch` query: "$ARGUMENTS earnings estimate revisions {current_year}" — analyst estimate revision trend from Zacks/Yahoo. Fallback for broken `getAnalystEstimates` (402 error). Rising estimates = bullish catalyst. Falling = headwind.
 
 ### Derived Calculations
 
 Using data from all phase reports:
+
+**Momentum Extension Risk (from getStockPriceChange):**
+- Extract 1M and 3M percentage changes
+- Classify into extension category per `_shared/scoring-rubrics.md` "Momentum Extension Modifier":
+  - EXTREME: 1M >= 60% OR (1M >= 40% AND 3M >= 90%) → subtract 5 from composite
+  - HIGH: 1M >= 30% OR (1M >= 20% AND 3M >= 60%) → subtract 2 from composite
+  - MEDIUM: 1M >= 15% OR 3M >= 30% → no modifier
+  - LOW: 1M < 15% AND 3M < 30% → no modifier
+- Check recovery exception: if 6M < 0 AND 1M > 0, reduce category by one tier
+- Check IPO exception: if <100 trading days, halve the penalty
+- Record: 1D%, 5D%, 1M%, 3M%, 6M%, 1Y% in the Momentum row of the report
+- This modifier is applied as Override 5 (does NOT stack with Override 1 overbought — use larger penalty)
 
 **Value at Risk (VaR):**
 - Daily VaR = price * HV (from Phase 10) * 1.645 (95% confidence)
@@ -61,23 +74,35 @@ Using data from all phase reports:
 
 ## Phase 16: Synthesis & Recommendation
 
+### Step 0 — Determine Earnings Regime
+
+Check `getEarningsCalendar` data from Phase 11 or fundamental report:
+- If earnings within 7 calendar days: **USE PRE-EARNINGS WEIGHTS** (see scoring-rubrics.md "Pre-Earnings Weight Switching" section). Note: "PRE-EARNINGS WEIGHT SWITCH active."
+- If analyzing within 2 trading days AFTER earnings report: flag for **Sell-the-News check** (Override 7).
+- Otherwise: use normal weights.
+
 ### Step 1 — Score all 8 dimensions
 
 Apply `_shared/scoring-rubrics.md` thresholds to data from all phase reports. For each dimension, assign a score 1-10 with brief justification.
 
 **Scoring checklist — ensure all inputs are used:**
-- **Technical:** RSI (exact value), Stochastic (%K/%D exact values), MACD, ADX, timeframe alignment count. RSI overbought prevents 7-8 base.
-- **Fundamental:** Piotroski, Z-Score, revenue growth, earnings beat/miss history.
-- **Valuation:** Revenue PEG (primary), EPS PEG (secondary check for margin expansion), PSG (routing alt only), DCF range, analyst consensus vs price.
+- **Technical:** RSI (exact value), Stochastic (%K/%D exact values), MACD, ADX, timeframe alignment count. Apply ADX-conditional RSI interpretation (if ADX > 35 with +DI > 2x -DI, RSI overbought is trend confirmation — no cap). Apply Volume Direction Modifier (distribution/accumulation on high volume).
+- **Fundamental:** Piotroski, Z-Score, revenue growth, earnings beat/miss history. Apply SBC Margin Adjustment if SBC > 10% of revenue.
+- **Valuation:** Revenue PEG (primary), EPS PEG (secondary). Apply Scaled EPS-PEG Divergence Adjustment (divergence ratio >= 4.0 → +3, >= 3.0 → +2, >= 2.0 → +1; cap at Val 7; cap at +2 if P/S > 40x). PSG (routing alt only), DCF range, analyst consensus vs price.
 - **Sentiment:** All 5 platform scores × weights. Include News NLP compliance status.
-- **Smart Money:** Insider activity + 10b5-1 status + congressional trades + institutional ownership + options flow. Congressional data from `{SYMBOL}_sentiment.md` must be included in justification.
-- **Macro:** VIX + rates + sector ETF (if available).
-- **Backtest:** Apply trade count gate FIRST, then B&H comparison, then walk-forward status.
+- **Smart Money:** Insider activity + 10b5-1 status + congressional trades + institutional ownership + options flow. Apply Insider-Institutional Divergence Resolution (if all selling is 10b5-1 + institutional accumulation > 5% → floor 6). Congressional data from `{SYMBOL}_sentiment.md` must be included in justification.
+- **Macro:** VIX + rates + sector ETF (if available). If sector ETF data unavailable (FMP 402): cap Macro at 6.
+- **Backtest:** Apply trade count gate FIRST. Apply revised B&H benchmark (waive penalty if B&H > 100%, reduce to -1 if B&H > 50%). Apply Adaptive Backtest Weighting (reduce effective weight based on trade count; halve if walk-forward robustness < 0.3). Apply walk-forward status.
 - **Risk:** Beta, RSI, IV, earnings proximity, extension from SMA50, geographic concentration.
 
 **Asset type check:** If crypto, use crypto weights (Technical 35%, Smart Money 25%, Risk 20%, Backtest 12%, Sentiment 8%). Skip Fundamental, Valuation, Macro.
 
 ### Step 2 — Calculate weighted composite
+
+**Check earnings regime from Step 0:**
+- If pre-earnings: use pre-earnings weights from scoring-rubrics.md
+- Otherwise: use normal weights
+- If Adaptive Backtest Weighting triggered (low trade count or overfitted): adjust backtest weight and redistribute proportionally
 
 ```
 composite = sum(dimension_score * weight) / sum(weights) * 10
@@ -85,13 +110,26 @@ composite = sum(dimension_score * weight) / sum(weights) * 10
 
 Scale to 0-100.
 
+**Quality-Timing Dual Score (compute alongside composite):**
+```
+quality_score = (fundamental * 0.30 + valuation * 0.25 + smart_money * 0.25 + macro * 0.20) * 10
+timing_score = (technical * 0.35 + risk * 0.25 + sentiment * 0.20 + backtest * 0.20) * 10
+```
+Report both in the output. Apply the Quality-Timing signal matrix from scoring-rubrics.md as supplementary guidance.
+
+**Critical:** If Quality >= 60, NEVER produce a SELL signal regardless of composite. High-quality businesses with bad timing are HOLDs, not SELLs.
+
 ### Step 3 — Apply overrides (in order)
 
-**Override 1: Overbought/Oversold (Graduated)**
-- RSI from Phase 3 technical report
-- RSI 75-80: subtract 5. Note: "OVERBOUGHT — RSI {value}. Timing risk elevated."
-- RSI 80-85: subtract 10. Note: "OVERBOUGHT — RSI {value}. Strong timing risk."
-- RSI > 85: cap at 55. Note: "EXTREME OVERBOUGHT — RSI {value}. Do not enter."
+**Override 1: Overbought/Oversold (Graduated, ADX-Conditional)**
+- RSI from Phase 3 technical report. ADX and +DI/-DI from Phase 3.
+- **First check ADX-conditional RSI** (see scoring-rubrics.md):
+  - If ADX > 35 AND +DI > 2x -DI: multiply overbought penalty by 0.5x (trend-confirmed overbought)
+  - If ADX 25-35: multiply by 0.6x
+  - If ADX < 25: multiply by 1.0x (full penalty — exhaustion signal)
+- RSI 75-80: base subtract 5 × ADX_multiplier. Note includes ADX context.
+- RSI 80-85: base subtract 10 × ADX_multiplier.
+- RSI > 85: cap at 55 regardless of ADX. Note: "EXTREME OVERBOUGHT — RSI {value}. Do not enter."
 - RSI 20-25: add 5 (LONG only). Note: "OVERSOLD — RSI {value}. Potential snap-back."
 - RSI < 20: add 10 (LONG only). Note: "EXTREME OVERSOLD — RSI {value}. High snap-back probability."
 - Oversold does NOT prevent SELL for existing positions.
@@ -102,13 +140,38 @@ Scale to 0-100.
 - VIX > 35 AND beta <= 1.0: warning only, no score change
 
 **Override 3: Cross-Dimension Conflicts**
-- Technical vs Fundamental diverge by >5 points: subtract 3
+- Technical vs Fundamental diverge by >=5 points: subtract 3
 - Risk <= 2 AND composite >= 60: downgrade to HOLD
 - Data completeness < 60%: force HOLD
 - Fewer than 5/8 dimensions scored: force HOLD
 
 **Override 4: R:R Check**
 - If R:R ratio < 1.5: force HOLD with note "Risk/Reward insufficient"
+
+**Override 5: Momentum Extension**
+- Use extension category computed in Phase 15 from `getStockPriceChange`
+- EXTREME → subtract 5. HIGH → subtract 2. MEDIUM/LOW → no change.
+- Does NOT stack with Override 1 (overbought). If both apply, use the LARGER penalty only.
+  - Example: RSI 78 = -5 (Override 1) + EXTREME extension = -5 (Override 5). Use -5, not -10.
+  - Example: RSI 72 = 0 (no Override 1) + EXTREME extension = -5. Apply -5.
+- Recovery exception: 6M return negative + 1M positive → reduce category by one tier before applying
+- IPO exception: <100 trading days → halve the penalty (round down)
+- **Fundamental-Catalyst Exception:** If EXTREME/HIGH AND major catalyst in last 60 days (contract >10% revenue, >=3 upgrades in 30d, revenue acceleration >5pp, major product launch) → reduce category by one tier. Note: "EXTENSION CATALYST EXCEPTION: {catalyst}."
+- Note in output: "EXTENSION OVERRIDE: {CATEGORY} (1M: +{X}%, 3M: +{Y}%) → {modifier applied}"
+
+**Override 6: Earnings Catalyst Modifier** (only if earnings within 7 days)
+- Compute Earnings Beat Probability (EBP): base = beats/total_quarters + 10% if estimate revisions positive + 5% if avg surprise > 10%. Cap at 95%.
+- EBP >= 80%: add +3. EBP >= 65%: add +1. EBP < 50%: subtract 2. EBP < 30%: subtract 4.
+- Note: "EARNINGS CATALYST: {date}. Beat probability: {EBP}%. History: {X}/{Y} beats. Modifier: {+/-N}."
+
+**Override 7: Sell-the-News Detector** (only if within 2 trading days AFTER earnings)
+- IF EPS beat > 10% AND revenue beat > 3% AND stock change < -5% AND (P/S > 30x OR P/E > 100x):
+  - Subtract 5. Note: "SELL-THE-NEWS: Beat on all metrics but stock down {X}%. Further compression likely."
+- IF 6M return < -15% AND earnings beat: Note: "Stock in distribution phase despite strong fundamentals."
+
+**Quality-Timing Safety Check:**
+- After all overrides, if composite < 40 (SELL territory) BUT Quality Score >= 60: OVERRIDE to HOLD (40).
+- Note: "QUALITY FLOOR: High-quality business (Quality {X}) prevents SELL signal. Bad timing, not bad business."
 
 ### Step 4 — Determine signal
 

@@ -72,15 +72,25 @@ Calculate these 10 metrics from the chain data:
 - `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=5 — headlines with URLs (URLs used in Step 2)
 - `WebSearch` query: "$ARGUMENTS stock twitter sentiment {current_year}" — Twitter/X sentiment (fastest-moving platform)
 - `WebSearch` query: "$ARGUMENTS site:stocktwits.com" — StockTwits sentiment (has built-in bullish/bearish tagging)
+- `WebSearch` query: "$ARGUMENTS short interest FINRA {current_year}" — short interest % of float. High SI + approaching earnings = squeeze catalyst. SI data is freely available from FINRA/Nasdaq but not in FMP.
+- `WebSearch` query: "$ARGUMENTS earnings whisper estimate {current_year}" — whisper numbers (buy-side expectations). Often higher than published consensus. If actual beats whisper, reaction is more positive than just beating consensus.
 
 **Data provenance note:** WebSearch for Twitter/StockTwits returns articles ABOUT platform sentiment, not actual platform data. Always label the source accurately: 'Twitter/X (via news reports)' or 'StockTwits (via editorial summary)' — never imply direct platform access. If actual bull/bear ratios from the platform are not obtainable, note this limitation. If the `market_sentiment` MCP tool returns platform-specific data, that IS first-party data and should be labeled accordingly.
 
 - `mcp__financial-modeling-prep__searchInsiderTrades` with symbol=$ARGUMENTS, limit=10 — insider buys/sells with $ amounts. Derive net buy/sell ratio. Weight by: C-suite buys >$1M = strong signal.
+- `mcp__financial-modeling-prep__getInsiderTradeStatistics` with symbol=$ARGUMENTS — pre-computed net insider buying/selling ratio and trend. Complements raw trade data.
+- `mcp__financial-modeling-prep__getLatestInsiderTrading` with symbol=$ARGUMENTS, limit=5 — most recent insider transactions. May capture trades not yet in searchInsiderTrades.
 - **10b5-1 verification (REQUIRED):** FMP does not return 10b5-1 plan status. After getting insider trades, run `WebSearch` query: `{SYMBOL} "{INSIDER_NAME}" 10b5-1 plan {year} SEC Form 4` for each insider with sales >$1M. The SEC Form 4 footnotes explicitly state whether sales were under a pre-arranged Rule 10b5-1 plan and the plan adoption date. Report as **confirmed 10b5-1** (with adoption date) or **discretionary sale** — never say "likely."
 - `mcp__financial-modeling-prep__getSenateTrades` with symbol=$ARGUMENTS — always called. Empty = "No Senate activity"
 - `mcp__financial-modeling-prep__getHouseTrades` with symbol=$ARGUMENTS — always called. Empty = "No House activity"
+- `mcp__financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=5 — official corporate press releases. Primary source for contract announcements, product launches, partnerships. Feeds into Extension Catalyst Exception check.
 - `mcp__financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 30 days} — returns ALL companies' earnings (no symbol filter). Must search response for $ARGUMENTS. Alternatively, use `getEarningsReports` from Phase 9 for per-symbol dates.
 - `mcp__alpaca__get_corporate_actions` with symbol=$ARGUMENTS — upcoming splits, dividends, spin-offs, mergers within 30 days. Reverse split could trigger stop-losses. Feeds into Risk scoring.
+- `mcp__financial-modeling-prep__getAftermarketQuote` with symbol=$ARGUMENTS — after-hours bid/ask, price, volume. **Critical for earnings reaction detection.** Shows immediate post-earnings institutional sentiment before next open.
+- `mcp__financial-modeling-prep__getAftermarketTrade` with symbol=$ARGUMENTS — AH trade prices, sizes, timestamps. **Large block trades in AH = institutional conviction.** Multiple 10K+ share blocks at increasing prices = strong accumulation signal.
+- `mcp__financial-modeling-prep__searchStockNews` with symbol=$ARGUMENTS, limit=5 — symbol-specific news search. More targeted than general `getStockNews` feed. Better hit rate for sentiment analysis.
+- `mcp__financial-modeling-prep__searchPressReleases` with symbol=$ARGUMENTS, limit=5 — symbol-specific press releases. Catches pre-earnings guidance revisions, contract wins, partnership announcements. **Feeds into Extension Catalyst Exception.**
+- `mcp__financial-modeling-prep__getFilingsBySymbol` with symbol=$ARGUMENTS, limit=5 — recent SEC filings (8-K, 10-Q, etc.). **8-K filings signal material events** — guidance changes, exec departures, major contracts. A cluster of 8-Ks before earnings = something is happening.
 
 **Crypto route:** `market_sentiment` + `multi_agent_analysis` + `mcp__financial-modeling-prep__searchCryptoNews` + `WebSearch` Twitter. Skip insider/congressional/corporate actions.
 
@@ -105,8 +115,9 @@ If fewer than 3 of 5 items are completed, add 'NEWS NLP: INCOMPLETE' warning to 
 
 ## Phase 12: Institutional Ownership
 
-**1 call:**
+**2 calls, parallel:**
 - Call `mcp__financial-modeling-prep__getPositionsSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter}
+- Call `mcp__financial-modeling-prep__getHolderPerformanceSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **Are the institutional holders good investors?** If high-alpha funds (those outperforming S&P 500) are accumulating, this is a stronger signal than generic institutional buying. Cathie Wood selling while Renaissance buying = trust Renaissance.
 
 **13F filing lag:** Use the most recent quarter Q where (Q_end_date + 45 days) < today. This guarantees all filings for that quarter are past deadline.
 Example: On May 4, 2026: Q1 ends Mar 31, deadline May 15 — NOT past → skip. Q4 ends Dec 31, deadline Feb 14 — past → USE Q4 2025.
