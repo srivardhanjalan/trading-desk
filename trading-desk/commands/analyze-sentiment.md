@@ -7,7 +7,9 @@ argument-hint: "[SYMBOL]"
 
 Run Phases 10, 11, 12, 13, 14 for the given symbol. This is a standalone entry point for sentiment, options, institutional, and backtesting analysis.
 
-**Before starting:** Read `${CLAUDE_PLUGIN_ROOT}/commands/${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md`. If running standalone, you'll need the current price from `mcp__plugin_trading-desk_financial-modeling-prep__getCompanyProfile` for options chain filtering.
+**Before starting:** Read `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md`. If running standalone, you'll need the current price from `mcp__plugin_trading-desk_financial-modeling-prep__getCompanyProfile` for options chain filtering.
+
+**On ANY tool returning 402 / paywall:** Consult the "Free-Tier Fallback Chains for Paywalled FMP Endpoints" table in `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` BEFORE marking the field N/A. Always attempt the FMP call first (never pre-skip based on prior 402 in this session — see session-cache rule), then run the documented primary fallback. Mark `OK (fallback)` on success, `402` only after both FMP and the documented fallback chain fail. **Every paywalled FMP endpoint called from this file has an entry in that table — consult it on each 402, do not improvise.**
 
 ---
 
@@ -151,7 +153,7 @@ If fewer than 4 of 6 items are completed, add 'NEWS NLP: INCOMPLETE' warning to 
 
 **5 calls, parallel:**
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getPositionsSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — aggregate snapshot: total holders, total share count, total value.
-- Call `mcp__plugin_trading-desk_financial-modeling-prep__getFilingExtractAnalyticsByHolder` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **fund-by-fund detail**: top buyers (with share-count + portfolio-weight changes), top sellers, NEW positions initiated this quarter, EXITS (funds closing positions). Reveals whether a specific high-alpha fund just initiated vs. trimmed. **Always extract:** top 3 new positions, top 3 exits, largest weight change. Much higher signal-to-noise than the aggregate.
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getFilingExtractAnalyticsByHolder` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **fund-by-fund detail**: top buyers (with share-count + portfolio-weight changes), top sellers, NEW positions initiated this quarter, EXITS (funds closing positions). Reveals whether a specific high-alpha fund just initiated vs. trimmed. **Always extract:** top 3 new positions, top 3 exits, largest weight change. Much higher signal-to-noise than the aggregate. **Fallback on 402:** see `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` "Free-Tier Fallback Chains" for the canonical chain. Always attempt the FMP call first; never pre-skip based on prior 402.
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getHolderPerformanceSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **Are the institutional holders good investors?** If high-alpha funds (those outperforming S&P 500) are accumulating, this is a stronger signal than generic institutional buying. Cathie Wood selling while Renaissance buying = trust Renaissance.
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getForm13FFilingDates` with symbol=$ARGUMENTS — exact filing dates for the symbol's institutional holders. Detects STALE vs FRESH 13F data and identifies which funds filed most recently.
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getHolderIndustryBreakdown` with symbol=$ARGUMENTS — which industries/sectors the institutional holders come from. If holders are concentrated in one industry (e.g., all tech funds), a sector rotation would trigger correlated selling.

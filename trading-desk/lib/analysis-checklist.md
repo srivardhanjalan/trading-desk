@@ -503,7 +503,8 @@ These are values that MUST be confirmed from actual data before being used in sc
 
 | Error | Action |
 |-------|--------|
-| Tool returns 402/404 | Log, set component to N/A, continue |
+| Tool returns 402/401/403 (paywall) | Log, run fallback chain in `error-handling.md`, mark `OK (fallback)` on success or `402` only after all fallbacks fail |
+| Tool returns 404 / generic error | Log, set component to N/A, continue |
 | Tool returns empty [] | Log "No {data} for SYMBOL", continue |
 | Tool returns >50KB | Summarize key metrics only |
 | Tool timeout | Log, set to N/A, continue |

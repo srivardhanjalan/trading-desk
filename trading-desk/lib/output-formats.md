@@ -295,9 +295,10 @@ ALL 8 overrides MUST appear. No override may be omitted. This is the audit trail
 ## API Call Manifest
 | # | Tool | Status | Notes |
 |---|------|--------|-------|
-| 1 | {TOOL_NAME} | {OK/FAIL/PARTIAL/INVALID} | {BRIEF_NOTE} |
+| 1 | {TOOL_NAME} | {OK / OK (fallback) / EMPTY / 402 / FAILED / N/A} | {BRIEF_NOTE — for "OK (fallback)" cite the fallback source} |
 | ... | | | |
-Data Completeness: {SUCCESS}/{TOTAL} = {PCT}%
+Data Completeness: (count(OK) + count(OK (fallback))) / (count(OK) + count(OK (fallback)) + count(402) + count(FAILED)) × 100 = {PCT}%
+(EMPTY and N/A are excluded from both numerator and denominator. See `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` "Manifest status taxonomy" for canonical definitions.)
 ```
 
 ---

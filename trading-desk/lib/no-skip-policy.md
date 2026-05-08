@@ -10,15 +10,18 @@
 
 ---
 
-## Three Valid Outcomes for Every Step
+## Four Valid Outcomes for Every Step
 
 Each analysis step can only have one of these outcomes:
 
-1. **COMPLETED** — Tool called, data collected, used in scoring
-2. **FAILED** — Tool called, error received, logged as `N/A` with reason
-3. **NOT APPLICABLE** — Step does not apply to this asset type (e.g., crypto has no fundamentals)
+1. **COMPLETED** — Tool called, data collected, used in scoring (manifest status `OK`)
+2. **COMPLETED via fallback** — FMP returned 402/401/403, but a documented fallback in `error-handling.md` succeeded (manifest status `OK (fallback)`). Counts toward completeness as success.
+3. **FAILED** — Tool called, error received, AND any documented fallbacks also failed. Logged as `N/A` with reason. (manifest status `402` if paywall, `FAILED` if other error)
+4. **NOT APPLICABLE** — Step does not apply to this asset type (e.g., crypto has no fundamentals) (manifest status `N/A`)
 
-**There is no fourth option.** "Skipped because it seemed optional" or "skipped to save time" are NOT valid outcomes.
+**There is no fifth option.** "Skipped because it seemed optional" or "skipped to save time" are NOT valid outcomes.
+
+**Critical:** On a 402 paywall, you have NOT failed until the fallback chain in `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` has been attempted. Marking a step FAILED without running the documented primary fallback is a pipeline violation.
 
 ---
 

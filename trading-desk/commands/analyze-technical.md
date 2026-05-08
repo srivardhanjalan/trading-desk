@@ -7,7 +7,9 @@ argument-hint: "[SYMBOL]"
 
 Run Phases 0, 1, 3, 4, 5, 6 for the given symbol. This is a standalone entry point for technical-only analysis.
 
-**Before starting:** Read `${CLAUDE_PLUGIN_ROOT}/commands/${CLAUDE_PLUGIN_ROOT}/lib/asset-classifier.md` and `${CLAUDE_PLUGIN_ROOT}/commands/${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` for routing and error handling rules.
+**Before starting:** Read `${CLAUDE_PLUGIN_ROOT}/lib/asset-classifier.md` and `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` for routing and error handling rules.
+
+**On ANY tool returning 402 / paywall:** Consult the "Free-Tier Fallback Chains for Paywalled FMP Endpoints" table in `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` BEFORE marking the field N/A. For technical indicators (`getRSI`, `getSMA`, `getEMA`, `getADX`, `getDEMA`, `getTEMA`, `getWMA`, `getWilliams`), the canonical fallback is to compute from `mcp__plugin_trading-desk_alpaca__get_stock_bars` close-price series — formulas in `${CLAUDE_PLUGIN_ROOT}/lib/scoring-rubrics.md`. Mark `OK (fallback)` on success, `402` only after both FMP and the fallback fail.
 
 ---
 

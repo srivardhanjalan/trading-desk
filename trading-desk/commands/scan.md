@@ -69,10 +69,14 @@ Take top 10 results by volume/momentum. Proceed to scan these 10 stocks.
 
 ### FMP Tier-Aware Degradation
 
+**Scope:** `/scan` runs across many tickers and CANNOT afford to cascade through 3-deep fallback chains per paywalled endpoint per ticker. This degradation policy is `/scan`-specific. For deep single-ticker analysis (`/analyze*`), the full fallback chain in `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` is used instead.
+
 For each stock, fire all 6 FMP calls in parallel. Handle responses:
 - **Full tier:** All 6 return data → score all dimensions
 - **Partial tier:** Some return 402 → score available dimensions, mark others N/A. Normalize: composite = weighted_sum / sum_of_available_weights * 100
 - **Minimal tier:** Most 402 (OTC/micro-cap) → getCompanyProfile + TV-Analysis only. Technical-only score. Rank separately.
+
+When a ranked stock is then deep-analyzed via `/analyze {SYMBOL}`, paywalled fields will be re-attempted with the full fallback chain — the scan-time N/A is NOT sticky.
 
 ### Quick Scoring Per Stock
 

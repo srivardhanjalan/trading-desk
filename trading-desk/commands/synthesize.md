@@ -11,8 +11,8 @@ Run Phases 15, 16, 16b for the given symbol. Reads phase report files, scores al
 - `reports/{SYMBOL}_technical.md` (from analyze-technical)
 - `reports/{SYMBOL}_fundamental.md` (from analyze-fundamental)
 - `reports/{SYMBOL}_sentiment.md` (from analyze-sentiment)
-- `${CLAUDE_PLUGIN_ROOT}/commands/${CLAUDE_PLUGIN_ROOT}/lib/scoring-rubrics.md` (scoring thresholds)
-- `${CLAUDE_PLUGIN_ROOT}/commands/${CLAUDE_PLUGIN_ROOT}/lib/output-formats.md` (output templates)
+- `${CLAUDE_PLUGIN_ROOT}/lib/scoring-rubrics.md` (scoring thresholds)
+- `${CLAUDE_PLUGIN_ROOT}/lib/output-formats.md` (output templates)
 
 If any report file is missing, note which phases are unavailable and reduce data completeness accordingly.
 
@@ -25,7 +25,7 @@ If any report file is missing, note which phases are unavailable and reduce data
 - Call `mcp__plugin_trading-desk_alpaca__get_account_info` — current equity, buying power, cash
 - Call `mcp__plugin_trading-desk_alpaca__get_open_position` with symbol=$ARGUMENTS — check if already held, current P&L, quantity
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getStockPriceChange` with symbol=$ARGUMENTS — multi-period price performance (1D, 5D, 1M, 3M, 6M, 1Y) for momentum extension scoring
-- Call `WebSearch` query: "$ARGUMENTS earnings estimate revisions {current_year}" — analyst estimate revision trend from Zacks/Yahoo. Fallback for broken `getAnalystEstimates` (402 error). Rising estimates = bullish catalyst. Falling = headwind.
+- Call `WebSearch` query: "$ARGUMENTS earnings estimate revisions {current_year}" — analyst estimate **revision direction** (rising/falling) from Zacks/Yahoo. This is supplementary signal — it captures *direction-of-change* (a bullish/bearish catalyst), not absolute estimate values. For absolute forward EPS/revenue when `getAnalystEstimates` returns 402, the canonical primary fallback (per `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md`) is `stockanalysis.com/stocks/{symbol}/forecast/` — that should already have been resolved upstream in Phase 9. Rising estimates = bullish catalyst. Falling = headwind.
 - Call `mcp__plugin_trading-desk_alpaca__get_portfolio_history` with period="3M", timeframe="1D" — portfolio-level equity curve and drawdown over last 3 months. Used for sector concentration context and portfolio-level risk assessment. If max drawdown >15% in last month, apply more conservative position sizing.
 - Call `mcp__plugin_trading-desk_alpaca__get_all_positions` — all current positions for portfolio-level risk assessment (sector concentration, aggregate beta, correlation risk)
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getFullChart` with symbol=$ARGUMENTS, from_date={1 year ago YYYY-MM-DD}, to={today YYYY-MM-DD} — daily OHLCV for historical VaR/CVaR computation (requires 252 trading days of returns)
