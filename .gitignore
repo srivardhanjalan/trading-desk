@@ -10,6 +10,8 @@ node_modules/
 
 # Analysis reports (local state)
 reports/*.md
+reports/*.txt
+reports/logs/
 
 # OS
 .DS_Store

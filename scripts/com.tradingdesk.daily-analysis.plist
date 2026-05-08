@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tradingdesk.daily-analysis</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/srivardhanjalan/workspace/trading-desk/scripts/daily-analysis.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/srivardhanjalan/workspace/trading-desk</string>
+
+    <!-- 12:15 AM PDT daily -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>0</integer>
+        <key>Minute</key>
+        <integer>15</integer>
+    </dict>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>/Users/srivardhanjalan</string>
+    </dict>
+
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>/Users/srivardhanjalan/workspace/trading-desk/reports/logs/launchd_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/srivardhanjalan/workspace/trading-desk/reports/logs/launchd_stderr.log</string>
+
+    <!-- Run missed job if Mac was asleep at scheduled time -->
+    <key>StartInterval</key>
+    <integer>86400</integer>
+</dict>
+</plist>

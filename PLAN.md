@@ -371,17 +371,18 @@ Read `_shared/asset-classifier.md`:
 | WebFetch | 2-3 | Full-text NLP on top news articles |
 | **Total** | **~55-73** | Desktop-off minimum: ~55. Desktop-on maximum: ~73 |
 
-### Daily Budget (FMP only — other MCPs have no daily limit)
-| Command | FMP Calls | Frequency | Subtotal |
-|---------|-----------|-----------|----------|
-| /analyze (full) | 34 + 30 (2nd cached) | 2× per day | 64 |
-| /scan watchlist | 99 | 1× per day | 99 |
-| /morning-brief | ~25 | 1× per day | 25 |
-| /portfolio | ~8 | 2× per day | 16 |
-| /trade | 1 | as needed | 1 |
-| /research | ~5 | as needed | 5 |
-| **Typical daily total** | | | **~210** |
-| **Budget remaining** | | | **~40 (buffer for retries/extras)** |
+### FMP Rate Limit (paid plan — no daily cap)
+**Hard limit: 300 calls/minute.** No daily cap on paid FMP plan. Each `/analyze` takes minutes per stock (sequential tool calls), so actual throughput is well under 300/min even when running all 16 stocks back-to-back.
+
+| Command | FMP Calls | Notes |
+|---------|-----------|-------|
+| /analyze (full) | ~33-34 | ~29-30 with session cache |
+| /scan watchlist (16 stocks) | ~99 | |
+| /morning-brief | ~25 | |
+| /portfolio | ~8 | |
+| /trade | ~1 | |
+| /research | ~5 | |
+| **Nightly automation (16× /analyze)** | **~528** | Spread over ~60-90 min, no rate limit concern |
 
 ---
 
