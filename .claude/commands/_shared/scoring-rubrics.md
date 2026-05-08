@@ -74,6 +74,11 @@ Classify market regime BEFORE interpreting technical indicators:
 - Log: "REGIME: {TRENDING/TRANSITIONAL/MEAN-REVERTING} (ADX avg {X}, BB width {percentile}%ile)."
 - Regime affects Override 1 interpretation: in TRENDING regime, reduce RSI overbought penalty by additional 0.3x multiplier.
 
+**Multi-Period Relative Strength Modifier:**
+- Stock outperforming sector ETF by >10pp on 3M: Technical +0.5. "SECTOR OUTPERFORMER: +{X}pp vs {ETF} (3M)."
+- Stock underperforming sector ETF by >10pp on 3M: Technical -0.5. "SECTOR LAGGARD: {X}pp below {ETF} (3M)."
+- RS sign flip (1M positive, 3M negative or vice versa): flag "TREND REVERSAL" in warnings.
+
 ---
 
 ## Fundamental Score (1-10)
@@ -97,6 +102,12 @@ If stock-based compensation (SBC) > 10% of revenue, compute GAAP-equivalent oper
 - Beats 7-8 of last 8 quarters: +1
 - Misses 5+ of last 8 quarters: -1
 - Large surprise magnitude (>10% beat/miss): additional +/-0.5
+- **Surprise Trend Component (extends beat/miss modifier):**
+  - Improving surprise trend (last 4 quarters): additional +0.5
+  - Declining surprise trend (last 4 quarters): additional -0.5
+  - Stable/flat: no adjustment
+  - Requires minimum 6 quarters for trend calculation.
+  - Subject to Combined Fundamental Modifier Cap (+3 / -5).
 
 **Economic Moat Assessment Modifier:**
 Computed from data in `{SYMBOL}_fundamental.md` "Economic Moat" section:
@@ -117,6 +128,20 @@ Computed from data in `{SYMBOL}_fundamental.md` "Financial Statement Forensics" 
 - **Inventory/Revenue ratio increasing >5pp YoY:** Additional -0.5. "INVENTORY BUILDING: may indicate demand softening."
 - Net forensics modifier range: [-3, 0]. This is always non-positive (forensics can only flag problems, not confirm quality).
 - If forensics data is unavailable (pre-revenue company, REIT, etc.): skip modifier. Note: "FORENSICS N/A: {reason}."
+
+**Revenue Durability Modifier (from getFinancialStatementFullAsReported):**
+- RPO > 2x annual revenue: Fundamental +1. "STRONG RPO: ${X}B = {Y}x revenue. High forward visibility."
+- RPO 1-2x revenue: Fundamental +0.5. "MODERATE RPO."
+- RPO < 0.5x revenue OR not reported: no modifier.
+- Customer concentration > 20% single customer: Risk -1. "CUSTOMER CONCENTRATION: top customer {X}%."
+- Customer concentration > 40%: Risk -2. "HIGH CUSTOMER CONCENTRATION: loss of top customer = material revenue risk."
+- **Anti-stacking with Moat Modifier:** Customer concentration from Revenue Durability (SEC filing data) REPLACES the concentration check in the Economic Moat Assessment Modifier. Do NOT apply both. SEC data is more authoritative than product segment proxy.
+- If getFinancialStatementFullAsReported returns 402 or empty: skip modifier. Note: "SEC FILING DATA: unavailable." Fall back to Moat Modifier's existing concentration check.
+
+**Combined Fundamental Modifier Cap:**
+Total positive modifiers from all sources (beat/miss + moat + revenue durability + surprise trend) cannot exceed +3.
+Total negative modifiers cannot exceed -5.
+This prevents score inflation at the top end and maintains scoring discrimination.
 
 ---
 
@@ -208,6 +233,13 @@ From `{SYMBOL}_fundamental.md` "Stress Test & Implied Value" section:
   - Implied growth < 0.5x consensus growth: Valuation +1. "GROWTH DISCOUNT: Market implies only {X}% growth vs {Y}% consensus."
 - **TAM analysis (Track B only):** From fundamental report TAM section. If current revenue < 5% of addressable market: note "TAM RUNWAY: {X}% penetration — long runway supports growth premium."
 
+**Scenario DCF Modifier (Track A stocks only, from synthesis phase):**
+- Probability-weighted FV > 1.3x current price: Valuation +1. "SCENARIO UNDERVALUED: weighted FV ${X} vs price ${Y}."
+- Probability-weighted FV < 0.8x current price: Valuation -1. "SCENARIO OVERVALUED: even bull case limited."
+- If Track B (growth stock): skip modifier, use PEG-based scoring. Note: "SCENARIO DCF: N/A for Track B."
+- If scenario DCF cannot be computed (missing growth estimates or WACC): skip modifier.
+- Note: RPO data (from Revenue Durability) is informational context for growth estimates, NOT a separate scoring signal here. Do not double-credit RPO in both Fundamental and Valuation.
+
 ---
 
 ## Sentiment Score (1-10)
@@ -286,6 +318,13 @@ Rationale: Large-cap stocks have more institutional coverage and better news flo
 - If institutional accumulation > 5% AND insider selling is DISCRETIONARY (not 10b5-1): Smart Money ceiling = 4. "INSIDER-INSTITUTIONAL CONFLICT: Discretionary insider selling while institutions accumulate. Insiders may have MNPI."
 
 **Order book depth modifier** (from `depth_get`, Desktop only): bid depth > 2x ask = +1. Ask > 2x bid = -1.
+
+**Options Greeks Modifier (from Phase 10 Greeks Profile):**
+- GEX strongly negative + price near key strike: Smart Money +1. "DEALER SHORT GAMMA: moves will be amplified."
+- IV surface inverted (call IV > put IV) + high vega at OTM calls (>2x ATM): Smart Money +1. "SPECULATIVE UPSIDE: unusual call speculation."
+- High theta decay on puts (net sellers of puts): Smart Money +0.5. "PUT SELLERS: market-makers expect support."
+- If Greeks data unavailable (no OI): no modifier. Note: "GREEKS N/A."
+- **Anti-double-count with options flow:** When Greeks modifier fires, REDUCE the weight of options flow signals (P/C ratio, unusual activity) in the base Smart Money score by 50%. Greeks is a refinement of the same underlying data — the base score already partially captures the signal via P/C ratio and unusual activity. Do not fully stack both.
 
 **No-options-market fallback:** When no options market exists (common for small-caps/OTC), redistribute options flow weight to insider + institutional signals. Note: "OPTIONS N/A — Smart Money scored from insider/institutional only." Do not penalize for absence of options data.
 

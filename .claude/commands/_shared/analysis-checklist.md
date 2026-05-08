@@ -45,11 +45,13 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 - [ ] `TV-Analysis: top_gainers` — daily leaders (check if symbol is top gainer)
 - [ ] `TV-Analysis: top_losers` — daily laggards (check if symbol is top loser)
 - [ ] **Relative strength:** Compare stock 1D% vs market snapshot direction
+- [ ] Compute Multi-Period Relative Strength vs Sector ETF (1M/3M/6M)
 
 **FMP-only fallback (if BOTH TV-Analysis calls fail — OTC stocks):** FMP data becomes PRIMARY. Apply -1 data gap penalty.
 
-### Phase 4: Volume & Float (5 parallel calls)
+### Phase 4: Volume & Float (6 parallel calls)
 - [ ] `FMP: getShareFloat` — float size, short interest %, short ratio
+- [ ] `Alpaca: get_stock_trades` (5 days, limit=1000) — block trade detection ($200K+ or 10K+ shares)
 - [ ] `TV-Analysis: smart_volume_scanner` — unusual volume (POST-FILTER for symbol)
 - [ ] `TV-Analysis: volume_confirmation_analysis` — volume-confirmed advance/decline
 - [ ] `TV-Analysis: consecutive_candles_scan` — consecutive candle count (POST-FILTER for symbol)
@@ -75,7 +77,7 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 
 ## PHASE GROUP 2: FUNDAMENTAL (Phases 2, 7, 8, 9)
 
-### Phase 2: Macro & Sector Context (15 parallel calls, all cacheable)
+### Phase 2: Macro & Sector Context (19 parallel calls, all cacheable)
 - [ ] `FMP: getTreasuryRates` — 2Y, 5Y, 10Y, 30Y yields; yield curve shape
 - [ ] `FMP: getStockPriceChange` with sector ETF — sector momentum (use sector→ETF mapping)
 - [ ] `FMP: getIndexQuote` (^VIX) — fear gauge (<15 calm, 15-20 normal, 20-25 elevated, 25-30 fear, >30 PANIC)
@@ -92,8 +94,12 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 - [ ] `FMP: getCOTAnalysis` — Commitment of Traders positioning (commercial hedger signals)
 - [ ] `FMP: getCOTReports` — detailed COT data for sector-related commodities
 - [ ] `FMP: getHistoricalSectorPE` — sector P/E history for relative valuation context
+- [ ] `FMP: getCompanySECProfile` — SIC code, ISIN, CUSIP, exact 52-week range, employee count
+- [ ] `WebSearch: ISM Services PMI` (for tech/services stocks) — current reading + trend
+- [ ] `WebSearch: IT Spending Forecast` (for tech stocks) — Gartner/analyst growth estimates
+- [ ] `WebSearch: Federal Reserve rate decision` (conditional — only if significant rate changes)
 
-### Phase 7: Financial Health (22 parallel FMP calls)
+### Phase 7: Financial Health (24 parallel FMP + WebSearch calls)
 - [ ] `getFinancialRatiosTTM` — P/E, P/B, EV/EBITDA, margins, D/E, FCF ratios
 - [ ] `getKeyMetricsTTM` — ROE, ROIC, EV/Sales, Graham number (26 fields)
 - [ ] `getIncomeStatement` (FY, limit=5) — revenue, net income, EPS, R&D, SBC (5Y for moat/forensics/capital allocation)
@@ -116,6 +122,10 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 - [ ] `getCompanyNotes` — footnotes, off-balance-sheet obligations, contingent liabilities
 - [ ] `getEmployeeCount` — current headcount snapshot (cross-ref with historical)
 - [ ] `getExecutiveCompensationBenchmark` — exec comp vs peers (agency risk flag)
+- [ ] `FMP: getFinancialStatementFullAsReported` (annual, limit=2) — RPO, customer concentration, purchase obligations (XBRL)
+- [ ] `WebSearch: Job postings / hiring momentum` — "{COMPANY_NAME} careers open positions"
+- [ ] Compute full Beneish M-Score (8-variable formula with coefficients)
+- [ ] Compute Management Credibility Score (beat rate + surprise trend from getEarningsReports)
 
 ### Phase 8: Peer Comparison (sequential then parallel)
 - [ ] `FMP: getStockPeers` — identify top 3-5 peers
@@ -174,6 +184,10 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 - [ ] Most Active Strikes (top 3 calls + puts by volume)
 - [ ] Premium Trend (7-day % change)
 - [ ] Net Delta Exposure (volume-weighted delta skew)
+- [ ] Gamma Exposure (GEX) — requires OI
+- [ ] IV Surface (ATM IV + 25-delta skew) 
+- [ ] Theta Decay Profile — requires OI
+- [ ] Vega Exposure hotspots — requires OI
 
 ### Phase 11: Sentiment & Insider Activity (~35 parallel calls)
 
@@ -184,11 +198,13 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 - [ ] `FMP: getStockNews` (limit=10) — headlines with URLs
 - [ ] `WebSearch:` "{SYMBOL} stock twitter sentiment {year}"
 - [ ] `WebSearch:` "{SYMBOL} site:stocktwits.com"
-- [ ] `WebSearch:` "{SYMBOL} short interest FINRA {year}"
+- [ ] `WebSearch:` "{SYMBOL} short interest history trend {year}" — SI% + 3-month trend
+- [ ] `WebFetch:` finviz.com short interest page (if accessible)
 - [ ] `WebSearch:` "{SYMBOL} earnings whisper estimate {year}"
 - [ ] `WebSearch:` "{SYMBOL} dark pool ATS FINRA volume {year}" — dark pool activity proxy
 - [ ] `WebSearch:` "{SYMBOL} Google Trends interest {year}" — retail interest trend
 - [ ] `WebSearch:` "{SYMBOL} web traffic SimilarWeb {year}" — web traffic as alt data proxy
+- [ ] `WebSearch:` "{COMPANY_NAME} Glassdoor rating {year}" — employee satisfaction
 
 **Insider activity:**
 - [ ] `FMP: searchInsiderTrades` (limit=10) — insider buys/sells with $ amounts
@@ -273,6 +289,7 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 - [ ] Check Fundamental-Catalyst Exception
 - [ ] Historical VaR (95%): 5th percentile of 1Y daily returns × position_value
 - [ ] CVaR (Expected Shortfall): average of returns below 5th percentile × position_value
+- [ ] Compute Bull/Base/Bear Scenario DCF with probability weighting (Track A stocks only)
 - [ ] Volatility-scaled position sizing: risk_pct = 2% × (15 / VIX), capped [0.5%, 3%]
 - [ ] Drawdown-adjusted sizing: >10% drawdown = halve size, >15% = block new positions
 - [ ] Existing holdings check: subtract from 20% cap
@@ -361,7 +378,7 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 - [ ] Section 4: Momentum & Extension (6-period table + category) ✓
 - [ ] Section 5: Valuation (track, PEG, DCF, analyst, earnings) ✓
 - [ ] Section 6: Sentiment (5 platform signals) ✓
-- [ ] Section 7: Options Flow (8 metrics: P/C, OI, IV/HV, skew, EM, MP, unusual, delta) ✓
+- [ ] Section 7: Options Flow (12 metrics: P/C, OI, IV/HV, skew, EM, MP, unusual, delta, GEX, IV Surface, Theta, Vega) ✓
 - [ ] Section 8: Insider Activity (trades + 10b5-1 status for each) ✓
 - [ ] Section 9: Institutional Ownership (holders, shares, ownership + staleness row) ✓
 - [ ] Section 10: Congressional Activity (Senate + House, or "None detected") ✓
@@ -380,13 +397,13 @@ Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP serv
 
 | Server | Calls | Notes |
 |--------|------:|-------|
-| **FMP** | ~90 | Bulk of data; many cacheable per session. Includes 9 always-on technical indicators + 6 macro additions |
+| **FMP** | ~92 | Bulk of data; many cacheable per session. Includes 9 always-on technical indicators + 6 macro additions + SEC profile + XBRL filing |
 | **TV-Analysis** | ~16 | Screeners, backtests, sentiment, market context (snapshot + gainers + losers + volume breakout) |
 | **TV-Desktop** | ~13 | Chart setup, indicators, screenshot, annotations |
-| **Alpaca** | ~10 | Market clock, options chain, account, positions, all_positions, portfolio history |
-| **WebSearch** | ~9 | Sentiment, short interest, 10b5-1, estimate revisions, dark pool, Google Trends, SimilarWeb |
-| **WebFetch** | ~5 | News article NLP (4-5 articles) |
-| **Total** | **~143** | Reduced to ~100-120 with caching and conditionals |
+| **Alpaca** | ~11 | Market clock, options chain, account, positions, all_positions, portfolio history, stock trades (block detection) |
+| **WebSearch** | ~13 | Sentiment, short interest trend, 10b5-1, estimate revisions, dark pool, Google Trends, SimilarWeb, ISM PMI, IT spending, Glassdoor, job postings |
+| **WebFetch** | ~6 | News article NLP (4-5 articles) + Finviz short interest |
+| **Total** | **~150** | Reduced to ~110-130 with caching and conditionals |
 
 ---
 

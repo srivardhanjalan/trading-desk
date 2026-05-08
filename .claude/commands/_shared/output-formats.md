@@ -107,6 +107,7 @@ Categories: EXTREME (1M>=80%) | SEVERE (60-80%) | HIGH (45-60%) | MODERATE (30-4
 | DCF — Custom | ${VALUE} | {NOTE — or INVALID with reason} |
 | Analyst Target | ${TARGET} ({UPSIDE}%) | {COUNT} analysts, {BREAKDOWN} |
 | Bear-Case DCF | ${VALUE} | 50% growth, industry margins |
+| Scenario DCF | Bull ${X} / Base ${Y} / Bear ${Z} | Weighted: ${W} ({PCT}% vs price) |
 | Margin of Safety | {PCT}% | {LABEL — significant/moderate/negative} |
 | Implied Growth | {PCT}% | vs {CONSENSUS}% consensus — {LABEL} |
 | Next Earnings | {DATE} | EPS est {EPS}, Rev est {REV} |
@@ -146,6 +147,10 @@ If multi-agent analysis was run, add row: `| Multi-Agent | {SIGNAL} | {NET_SCORE
 | Max Pain | ${PRICE} | {VS_CURRENT — above/below/at} |
 | Unusual Activity | {STRIKES} | {DETAIL — volume multiples} |
 | Net Delta Exposure | {VALUE} | {BULLISH/BEARISH/NEUTRAL} |
+| GEX | {VALUE} | {LONG/SHORT GAMMA — dampens/amplifies moves} |
+| IV Surface | ATM {X}%, 25d skew {Y}% | {NORMAL/INVERTED} |
+| Theta Profile | Net {VALUE} | {TIME DECAY interpretation} |
+| Vega Hotspot | {STRIKES} | {SPECULATION interpretation} |
 ```
 
 If no options market exists (small-cap), display: "OPTIONS N/A — no liquid options market. Smart Money scored from insider/institutional only."
@@ -303,7 +308,7 @@ Before displaying the Compact Card, verify:
 - [ ] All 16 section headers present
 - [ ] Scores table has exactly 8 dimension rows + composite row
 - [ ] Override Log has exactly 8 override rows (O1-O8)
-- [ ] Options Flow has all 8 metric rows (or explicit N/A)
+- [ ] Options Flow has all 12 metric rows (or explicit N/A)
 - [ ] Insider table has 10b5-1 column populated for every insider
 - [ ] Institutional table has Staleness row
 - [ ] API Manifest lists every tool call made

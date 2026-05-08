@@ -9,7 +9,7 @@ Scan multiple stocks with condensed analysis and rank by composite score.
 
 **Default watchlist:** ALMU, AMD, CRDO, FIX, ASX, KLTR, FLTCF, NVT, CDNS, AMPX, BBAI, LAW, SATS, GEV, BE, KGS
 
-**Budget:** ~6 FMP calls per stock + 2 TV-Analysis = 8 calls/stock. 16 stocks = 99 FMP calls + 32 TV-Analysis calls.
+**Budget:** ~7 FMP calls per stock + 2 TV-Analysis = 9 calls/stock. 16 stocks = 115 FMP calls + 32 TV-Analysis calls.
 
 ---
 
@@ -49,7 +49,7 @@ Take top 10 results by volume/momentum. Proceed to scan these 10 stocks.
 
 ## Per-Stock Analysis (for each symbol in the list)
 
-**6 FMP + 2 TV-Analysis calls per stock, parallel where possible:**
+**7 FMP + 2 TV-Analysis calls per stock, parallel where possible:**
 
 - `mcp__financial-modeling-prep__getCompanyProfile` — price, change, volume, marketCap, beta, sector, isEtf, isAdr
 - `mcp__financial-modeling-prep__getStockPriceChange` — multi-period momentum (1D/1M/3M/6M/1Y)
@@ -57,6 +57,7 @@ Take top 10 results by volume/momentum. Proceed to scan these 10 stocks.
 - `mcp__financial-modeling-prep__getFinancialScores` — Piotroski + Z-Score
 - `mcp__financial-modeling-prep__getDCFValuation` — intrinsic value estimate
 - `mcp__financial-modeling-prep__getPriceTargetSummary` — analyst consensus + count
+- `mcp__financial-modeling-prep__getFinancialStatementFullAsReported` with symbol={SYMBOL}, period="annual", limit=1 — quick RPO and customer concentration check from SEC filing XBRL data
 - `mcp__tradingview-analysis__coin_analysis` (symbol, exchange, "1D") — RSI, MACD, support/resistance
 - `mcp__tradingview-analysis__compare_strategies` (symbol, period="1y") — best strategy + return
 
@@ -69,12 +70,13 @@ For each stock, fire all 6 FMP calls in parallel. Handle responses:
 
 ### Quick Scoring Per Stock
 
-Score 5 quick dimensions (simplified from full 8):
+Score 6 quick dimensions (simplified from full 8):
 1. **Technical** (from coin_analysis): RSI position + MACD signal + trend
 2. **Fundamental** (from ratiosTTM + financialScores): Piotroski + Z-Score + margins
 3. **Valuation** (from DCF + priceTarget): DCF upside + analyst target distance
 4. **Backtest** (from compare_strategies): best strategy return + win rate
 5. **Risk** (from profile): beta + RSI extremes
+6. **Business Quality** (from getFinancialStatementFullAsReported): RPO > 2x revenue = strong, customer concentration > 20% = flag
 
 Quick composite = weighted average of available dimensions, scaled to 0-100.
 
@@ -112,6 +114,6 @@ After table:
 
 Display estimated FMP calls used this session:
 - Macro (cached): 3
-- Per stock: 6 × {count}
-- Total: 3 + (6 × count)
+- Per stock: 7 × {count}
+- Total: 3 + (7 × count)
 - Remaining: ~250 - total

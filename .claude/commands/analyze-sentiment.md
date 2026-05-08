@@ -58,6 +58,10 @@ Calculate these 10 metrics from the chain data:
 | **Most Active Strikes** | Top 3 call and top 3 put strikes by volume. Clustering = institutional price targets |
 | **Premium Trend** | From `get_option_bars`: 7-day price change % for top 3 contracts. Rising/falling conviction |
 | **Net Delta Exposure** | **Preferred:** Call/Put Volume-Weighted Delta Skew = (sum(call volume × call delta) - sum(put volume × abs(put delta))) / total volume. Positive = market net long. **Fallback (only if OI confirmed present):** sum(call OI × call delta) - sum(put OI × abs(put delta)). Volume-weighted is more reliable as it reflects current-day conviction rather than accumulated OI from stale positions. |
+| **Gamma Exposure (GEX)** | For each strike: gamma × OI × 100 × price². Sum calls (positive) minus sum puts (negative). Positive GEX = dealers long gamma (dampens moves, mean-reversion). Negative GEX = dealers short gamma (amplifies moves, trend continuation). **Requires OI.** If OI unavailable, report as "N/A — OI required." |
+| **IV Surface** | ATM IV = IV of strike nearest current price. 25-delta skew = IV of put with delta ~-0.25 minus IV of call with delta ~+0.25. Normal: put IV > call IV (protection demand). Inverted: call IV > put IV (speculative upside demand). |
+| **Theta Decay Profile** | Net theta = sum(call_theta × call_OI) + sum(put_theta × put_OI). Positive = time decay benefits sellers (range-bound expectation). Large negative on calls = expensive upside bets expiring soon. **Requires OI.** If OI unavailable, report as "N/A — OI required." |
+| **Vega Exposure** | High vega at OTM calls (>2x ATM vega × OI) = speculative volatility bet on upside. High vega at ATM = earnings play (pure volatility bet). **Requires OI.** If OI unavailable, report as "N/A — OI required." |
 
 **Options Flow Event Contextualization (MANDATORY):**
 After computing all 10 metrics, cross-reference against Phase 11 earnings calendar:
@@ -80,11 +84,13 @@ After computing all 10 metrics, cross-reference against Phase 11 earnings calend
 - `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=10 — headlines with URLs (URLs used in Step 2)
 - `WebSearch` query: "$ARGUMENTS stock twitter sentiment {current_year}" — Twitter/X sentiment (fastest-moving platform)
 - `WebSearch` query: "$ARGUMENTS site:stocktwits.com" — StockTwits sentiment (has built-in bullish/bearish tagging)
-- `WebSearch` query: "$ARGUMENTS short interest FINRA {current_year}" — short interest % of float. High SI + approaching earnings = squeeze catalyst. SI data is freely available from FINRA/Nasdaq but not in FMP.
+- `WebSearch` query: "$ARGUMENTS short interest history trend {current_year}" — short interest % of float AND trend data. Extract SI% at multiple dates for 3-month trend direction (rising/falling/stable). High SI + approaching earnings = squeeze catalyst. SI > 10% AND rising = -1 Risk. SI > 20% + days to cover > 5 = "SQUEEZE POTENTIAL" flag.
+- `WebFetch`: "https://finviz.com/quote.ashx?t=$ARGUMENTS" — extract Short Float%, Short Ratio, Short Interest (if accessible). If WebFetch blocked (403): use WebSearch results only, note "SI TREND: WebSearch only (lower confidence)".
 - `WebSearch` query: "$ARGUMENTS earnings whisper estimate {current_year}" — whisper numbers (buy-side expectations). Often higher than published consensus. If actual beats whisper, reaction is more positive than just beating consensus.
 - `WebSearch` query: "$ARGUMENTS dark pool activity ATS FINRA {current_year}" — dark pool volume as % of total. If > 40%, signals institutional accumulation/distribution. FINRA publishes biweekly ATS data. Feeds into Smart Money scoring.
 - `WebSearch` query: "$ARGUMENTS Google Trends interest {current_year}" — retail interest proxy from Google Trends data. Rising search interest often precedes retail buying waves. Declining interest = waning retail support.
 - `WebSearch` query: "{COMPANY_NAME} web traffic app downloads SimilarWeb {current_year}" — alternative demand data for e-commerce/SaaS/mobile companies. Rising web traffic/downloads = leading indicator for next quarter revenue.
+- `WebSearch` query: "{COMPANY_NAME} Glassdoor rating {current_year}" — employee satisfaction (leading indicator for execution quality). Extract: Overall rating (X/5), CEO approval %, "recommend to friend" %. Scoring: Rating < 3.0 = -0.5 Fundamental (talent retention risk). Rating > 4.0 = informational positive. Report: "Employee Satisfaction: Glassdoor {X}/5, CEO approval {Y}%, recommend {Z}%." Note: WebFetch to glassdoor.com returns 403 — use WebSearch summary data only. **Staleness:** Glassdoor ratings change slowly. If WebSearch result lacks a date or is >6 months old, label: "Glassdoor: {X}/5 (stale — may not reflect current conditions)."
 
 **Data provenance note:** WebSearch for Twitter/StockTwits returns articles ABOUT platform sentiment, not actual platform data. Always label the source accurately: 'Twitter/X (via news reports)' or 'StockTwits (via editorial summary)' — never imply direct platform access. If actual bull/bear ratios from the platform are not obtainable, note this limitation. If the `market_sentiment` MCP tool returns platform-specific data, that IS first-party data and should be labeled accordingly.
 
@@ -279,6 +285,23 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 - Dark Pool Volume: {X}% of total ({HIGH/NORMAL/LOW or "Data unavailable"})
 - Google Trends: {rising/stable/declining} interest
 - Web Traffic/Downloads: {data if available, or "N/A — not applicable to business model"}
+
+## Short Interest Dynamics
+- Current SI: {X}% of float
+- SI Trend: {rising/falling/stable} over 3 months
+- Days to Cover: {X}
+- Squeeze Risk: {YES — SI>{20}% + DTC>{5} / NO}
+
+## Employee Satisfaction
+- Glassdoor Rating: {X}/5 ({stale note if applicable})
+- CEO Approval: {Y}%
+- Recommend to Friend: {Z}%
+
+## Greeks Profile (from Option Chain)
+- GEX: {VALUE} ({LONG/SHORT GAMMA — dampens/amplifies moves, or "N/A — OI required"})
+- IV Surface: ATM {X}%, 25-delta skew {Y}% ({NORMAL/INVERTED})
+- Theta Profile: Net {VALUE} ({time decay interpretation, or "N/A — OI required"})
+- Vega Hotspot: {STRIKES} ({speculation interpretation, or "N/A — OI required"})
 
 ## Backtesting
 - Best Strategy: {name}

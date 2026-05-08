@@ -11,7 +11,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 
 ## Phase 2: Macro & Sector Context
 
-**15 calls, all cacheable per session (parallel):**
+**19 calls, all cacheable per session (parallel):**
 - Call `mcp__financial-modeling-prep__getTreasuryRates` — extract 2Y, 5Y, 10Y, 30Y yields. Check yield curve shape (2Y > 10Y = inverted = recession signal).
 - Call `mcp__financial-modeling-prep__getStockPriceChange` with the sector ETF symbol based on the stock's sector:
   - Technology → XLK, Semiconductors → SMH, Financials → XLF, Energy → XLE, Healthcare → XLV, Consumer Discretionary → XLY, Industrials → XLI, Real Estate → XLRE, Utilities → XLU, Materials → XLB, Comm Services → XLC, Consumer Staples → XLP
@@ -30,6 +30,10 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - Call `mcp__financial-modeling-prep__getCOTAnalysis` — Commitment of Traders data for relevant sector commodities. **Commercial hedgers heavily net long = potential bottom signal.** Speculator positioning >90th percentile long = crowded trade reversal risk.
 - Call `mcp__financial-modeling-prep__getCOTReports` — historical COT positioning trends. Confirms or refutes current COT signal with trajectory context.
 - Call `mcp__financial-modeling-prep__getHistoricalSectorPE` with sector={stock's sector} — sector P/E history (complement to industry P/E). Shows whether the entire sector is cheap or expensive vs history.
+- Call `mcp__financial-modeling-prep__getCompanySECProfile` with symbol=$ARGUMENTS — SIC code (standardized industry classification), ISIN, CUSIP, exact 52-week range, employee count. SIC code is more precise than FMP's internal `industry` field for `getHistoricalIndustryPE` lookup. Also provides ISIN/CUSIP for institutional data cross-referencing.
+- `WebSearch` query: "ISM services PMI latest {current_month} {current_year}" — services sector economic indicator. Extract: current PMI reading, prior month, trend (expanding >50 / contracting <50). Scoring: PMI > 55 = +0.5 Macro for services/software stocks. PMI < 50 = -1 Macro for services/software stocks. Only apply to stocks where sector = "Technology" or industry contains "Software" or "Services". **Confidence:** WebSearch returns articles ABOUT PMI releases, not structured data. Always label: "ISM PMI: {X} (WebSearch — approximate)." If no clear PMI number found, skip modifier.
+- `WebSearch` query: "Gartner IT spending forecast {current_year}" OR "enterprise software spending growth {current_year}" — IT spending growth context. Extract: total IT spending growth %, software spending growth %, AI/GenAI spending growth %. Compare: company revenue growth vs industry spending growth. If company growth > industry growth + 10pp: "GAINING SHARE" → Fundamental +0.5. If company growth < industry growth - 5pp: "LOSING SHARE" → note in report. Only apply to Technology sector stocks. **Confidence:** WebSearch returns analyst commentary, not raw Gartner data (paywalled). Always label: "IT Spending: ~{X}% growth (WebSearch — approximate)." If no clear number found, skip modifier.
+- `WebSearch` query: "Federal Reserve interest rate decision latest {current_year}" — rate environment context. Only if getTreasuryRates shows significant recent changes (>25bps in 30 days).
 
 **If sector ETF data returns 402:** Use `getSectorPerformanceSnapshot` as primary sector signal. If BOTH fail, cap Macro at 6 per scoring rubrics.
 
@@ -37,7 +41,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 
 ## Phase 7: Fundamentals + Financial Health
 
-**22 FMP calls, parallel:**
+**24 FMP + WebSearch calls, parallel:**
 - `mcp__financial-modeling-prep__getFinancialRatiosTTM` — P/E, P/B, EV/EBITDA, margins (gross, operating, net), current ratio, debt/equity, dividend yield, FCF ratios
 - `mcp__financial-modeling-prep__getKeyMetricsTTM` — ROE, ROIC, EV/Sales, EV/OCF, netDebt/EBITDA, cash conversion cycle, R&D/revenue, income quality, Graham number (26 unique fields)
 - `mcp__financial-modeling-prep__getIncomeStatement` with period="FY", limit=5 — absolute revenue ($), net income, EPS, R&D, SGA, **SBC (stock-based compensation)**. Extended to 5 years for moat assessment (margin stability), capital allocation analysis (shares outstanding trajectory), and financial statement forensics (receivables/revenue growth trending).
@@ -60,6 +64,8 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - `mcp__financial-modeling-prep__getCompanyNotes` with symbol=$ARGUMENTS — footnotes and disclosure items. Catches off-balance-sheet obligations, contingent liabilities, related-party transactions that P&L data misses.
 - `mcp__financial-modeling-prep__getEmployeeCount` with symbol=$ARGUMENTS — current headcount snapshot. Cross-reference with `getHistoricalEmployeeCount` for latest hiring/layoff trajectory.
 - `mcp__financial-modeling-prep__getExecutiveCompensationBenchmark` with symbol=$ARGUMENTS — exec comp relative to peers. Flags excessive compensation (agency risk) or unusually low comp (founder-led alignment).
+- `mcp__financial-modeling-prep__getFinancialStatementFullAsReported` with symbol=$ARGUMENTS, period="annual", limit=2 — XBRL data from SEC filings. Extract: `revenueremainingperformanceobligation` (RPO — forward revenue visibility), `revenueremainingperformanceobligationpercentage` (RPO recognition timeline), `concentrationriskpercentage1` (customer concentration by CUSTOMER, not product segment), `unrecordedunconditionalpurchaseobligationbalancesheetamount` (purchase obligations), `contractwithcustomerliabilitycurrent` (current deferred revenue), `numberofoperatingsegments` (segment count). **XBRL fallback:** Field names are US GAAP taxonomy tags. Not all companies report all fields. If any field is not found in the response, set that metric to "N/A — not reported in SEC filing." The Revenue Durability section must gracefully degrade — never penalize for missing XBRL data.
+- `WebSearch` query: "{COMPANY_NAME} careers open positions {current_year}" OR "{COMPANY_NAME} LinkedIn jobs" — hiring momentum (leading indicator for revenue, 1-2 quarters ahead). Extract: approximate total open positions, whether hiring is "aggressive" (>5% of headcount) or "moderate". Cross-reference with `getHistoricalEmployeeCount` trend. Headcount growing + aggressive hiring = expansion mode (bullish). Headcount flat + few openings = efficiency mode (bullish for margins). Headcount declining + few openings = contraction (bearish). Report: "Hiring Momentum: ~{X} open positions ({aggressive/moderate/minimal})."
 
 **ETF route:** Replace Phase 7 with:
 - `mcp__financial-modeling-prep__getFundHoldings` — top holdings and weights
@@ -72,7 +78,20 @@ From the 5-year income statement and balance sheet data, compute:
 - **Receivables/Revenue growth ratio:** (receivables_current / receivables_prior) / (revenue_current / revenue_prior). If > 1.5 for 2+ consecutive years: flag "REVENUE QUALITY WARNING."
 - **Inventory/Revenue growth ratio:** Same formula with inventory. If > 1.5 for 2+ years: flag "INVENTORY BUILD WARNING."
 - **Accruals ratio:** (net_income - operating_cash_flow) / total_assets. If positive and rising over 2+ years: flag "EARNINGS QUALITY WARNING."
-- **Beneish M-Score simplified:** If accruals > 0.05 AND receivables ratio > 1.3 AND gross margin declining while revenue grows: flag "MANIPULATION RISK."
+- **Beneish M-Score (Full 8-Variable Formula):**
+  Using data from getIncomeStatement (limit=5) and getBalanceSheetStatement (limit=5), compute:
+  M = -4.84 + 0.92×DSRI + 0.528×GMI + 0.404×AQI + 0.892×SGI + 0.115×DEPI - 0.172×SGAI + 4.679×Accruals - 0.327×LVGI
+  Where (using most recent 2 fiscal years, t = current, t-1 = prior):
+  1. DSRI = (Receivables_t / Revenue_t) / (Receivables_{t-1} / Revenue_{t-1})
+  2. GMI = GrossMargin_{t-1} / GrossMargin_t (note: PRIOR over CURRENT)
+  3. AQI = [1 - (CurrentAssets_t + PP&E_t) / TotalAssets_t] / [1 - (CurrentAssets_{t-1} + PP&E_{t-1}) / TotalAssets_{t-1}]
+  4. SGI = Revenue_t / Revenue_{t-1}
+  5. DEPI = (Depreciation_{t-1} / (Depreciation_{t-1} + PP&E_{t-1})) / (Depreciation_t / (Depreciation_t + PP&E_t))
+  6. SGAI = (SGA_t / Revenue_t) / (SGA_{t-1} / Revenue_{t-1})
+  7. Accruals = (NetIncome_t - OperatingCashFlow_t) / TotalAssets_t (cash-flow proxy formulation)
+  8. LVGI = (LongTermDebt_t + CurrentLiabilities_t) / TotalAssets_t / ((LongTermDebt_{t-1} + CurrentLiabilities_{t-1}) / TotalAssets_{t-1})
+  Interpret: M > -1.78 = "HIGH MANIPULATION RISK". M between -2.22 and -1.78 = "GREY ZONE". M < -2.22 = "CLEAN".
+  Report all 8 component values alongside M-Score.
 - **Capital allocation quality:** Track shares outstanding from balance sheet over 5 years. Compute 3-year buyback yield (shares reduced / avg shares). Rising shares = dilution (-1 Fundamental). Falling shares = buybacks (+1 Fundamental, unless done above intrinsic value).
 - **Moat indicators:**
   - Gross margin premium vs. peers (from Phase 8 data) sustained 3+ years = pricing power
@@ -152,6 +171,13 @@ From the 5-year income statement and balance sheet data, compute:
 - `mcp__financial-modeling-prep__getStockGradeNews` with symbol=$ARGUMENTS — recent upgrade/downgrade EVENTS with dates. Detects "3 downgrades this week" which monthly aggregates cannot see. Feeds into Sentiment and Smart Money.
 - `mcp__financial-modeling-prep__getStockGradeSummary` with symbol=$ARGUMENTS — aggregated Strong Buy/Buy/Hold/Sell/Strong Sell counts with trend direction. More structured than event-level grade news.
 - `mcp__financial-modeling-prep__getEarningsReports` with symbol=$ARGUMENTS — historical EPS actual vs estimated for last 4-8 quarters. Beat/miss pattern feeds into Fundamental and Risk scores. A stock that beats 8/8 quarters has fundamentally different risk than a serial misser. **Ensure all 8 quarters are retrieved.** If FMP returns 402, fallback to WebSearch for earnings history.
+- **Surprise Trend Analysis (extends beat/miss modifier):** Using getEarningsReports last 8 quarters, compute:
+  - Surprise trend: slope of surprise magnitudes over 8 quarters (positive = improving execution)
+  - Improving trend (surprise magnitude increasing over last 4 quarters): add +0.5 to existing beat/miss modifier
+  - Declining trend (surprise magnitude decreasing over last 4 quarters): subtract -0.5 from existing beat/miss modifier
+  - Stable/flat: no additional adjustment
+  - Report: "Surprise Trend: {improving/stable/declining} (slope: {X}pp per quarter)"
+  - Minimum 6 quarters required for trend calculation. If < 6 quarters: skip trend component.
 - `mcp__financial-modeling-prep__getAnalystEstimates` with symbol=$ARGUMENTS, period="quarter", limit=4 — forward EPS/revenue estimates for next 4 quarters. Rising estimates = analysts playing catch-up = bullish. Falling estimates = headwind. **Feeds into Earnings Catalyst Modifier (Override 6).**
 - `mcp__financial-modeling-prep__getEarningsSurprisesBulk` with year={current year} — batch surprise data. **Track surprise MAGNITUDE trend.** If beat margin is INCREASING each quarter (e.g., +2.6% → +7.8% → +23.4%), the stock is accelerating and likely to beat big again. Narrowing beats = sell-the-news risk.
 - `mcp__financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS — recent PT changes with analyst names, firm, date, old PT → new PT. **Detects PT revision ACCELERATION.** If 3+ analysts raised PTs in 2 weeks before earnings, this is a strong bullish catalyst signal.
@@ -214,6 +240,15 @@ Write all collected data to `reports/{SYMBOL}_fundamental.md` with this structur
 - Recurring Revenue Proxy: {yes/no — GM%, expanding, growth rate}
 - Moat Rating: {WIDE/NARROW/NONE}
 
+## Revenue Durability (SEC Filing Data)
+- RPO: ${X} ({Y}x annual revenue) — {strong/moderate/weak} forward visibility
+- RPO Recognition: {X}% within 12 months
+- Customer Concentration: top customer {X}% ({diversified/concentrated/highly concentrated})
+- Purchase Obligations: ${X}
+- Deferred Revenue (Current): ${X}
+- Operating Segments: {N}
+- Source: getFinancialStatementFullAsReported (XBRL)
+
 ## Market Cap Trajectory
 - Q-4: $X → Q-3: $X → Q-2: $X → Q-1: $X → Now: $X
 - Trend: {expanding/contracting/stable}
@@ -249,6 +284,21 @@ Write all collected data to `reports/{SYMBOL}_fundamental.md` with this structur
 - Beat/Miss: X/8 quarters beat
 - Avg Surprise: X%
 - Most Recent: {beat/miss by X%}
+
+## Management Credibility
+- Beat Rate: {X}/8 quarters ({Y}%)
+- Avg Surprise: {X}%
+- Surprise Trend: {improving/stable/declining} (slope: {X}pp per quarter)
+- Rating: {HIGH (>=7/8 + improving) / GOOD (>=5/8) / LOW (>=3/8) / POOR (<3/8)}
+
+## Hiring Momentum
+- Open Positions: ~{X} ({aggressive/moderate/minimal})
+- Headcount Trend: {growing/flat/declining}
+- Interpretation: {expansion mode/efficiency mode/contraction}
+
+## IT Spending Context (Technology sector only)
+- Industry Growth: ~{X}% (WebSearch — approximate)
+- Company vs Industry: {GAINING SHARE / INLINE / LOSING SHARE}
 
 ## Data Completeness: {X}%
 ```

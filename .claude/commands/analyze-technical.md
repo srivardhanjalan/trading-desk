@@ -88,16 +88,29 @@ Always fetch FMP technical indicators alongside TradingView data for cross-valid
 
 **Relative Strength Assessment:** Compare stock's 1D performance against market snapshot. If stock is up while market is down, or up more than market: "RELATIVE STRENGTH: Outperforming market by {X}pp." If underperforming: "RELATIVE WEAKNESS: Underperforming market by {X}pp."
 
+**Multi-Period Relative Strength vs Sector ETF:**
+Using stock returns from Phase 1 `getStockPriceChange` and sector ETF returns from Phase 2:
+| Period | Stock | Sector ETF | Relative Strength |
+|--------|-------|-----------|-------------------|
+| 1M     | {X}%  | {Y}%      | {X-Y}pp           |
+| 3M     | {X}%  | {Y}%      | {X-Y}pp           |
+| 6M     | {X}%  | {Y}%      | {X-Y}pp           |
+
+- RS > +10pp on 3M: "OUTPERFORMING SECTOR" → Technical +0.5
+- RS < -10pp on 3M: "UNDERPERFORMING SECTOR" → Technical -0.5
+- RS sign flip (outperforming on 1M, underperforming on 3M): flag "TREND REVERSAL" in warnings.
+
 ---
 
 ## Phase 4: Volume & Smart Money
 
-**5 calls, parallel:**
+**6 calls, parallel:**
 - Call `mcp__financial-modeling-prep__getShareFloat` with symbol=$ARGUMENTS — extract float size, short interest %, short ratio
 - Call `mcp__tradingview-analysis__smart_volume_scanner` with the exchange from Phase 1
 - Call `mcp__tradingview-analysis__volume_confirmation_analysis` with symbol=$ARGUMENTS and exchange from Phase 1 — confirms whether price advance/decline is backed by volume. Volume-confirmed moves are more reliable. Feeds into Volume Direction Modifier for Technical scoring.
 - Call `mcp__tradingview-analysis__consecutive_candles_scan` with exchange from Phase 1 and timeframe="1D" — detects sequences of consecutive bullish/bearish candles. 5+ consecutive bullish candles before earnings = momentum confirmation signal.
 - Call `mcp__tradingview-analysis__volume_breakout_scanner` with exchange from Phase 1 — identifies stocks with volume breakouts (high volume + price breakout). POST-FILTER for $ARGUMENTS. Volume breakouts confirm trend changes and provide higher-confidence entry signals.
+- Call `mcp__alpaca__get_stock_trades` with symbol=$ARGUMENTS, start={today - 5 days YYYY-MM-DD}, limit=1000 — **Block Trade Detection.** Filter trades with dollar value >= $200K OR size >= 10,000 shares (whichever is met first). Count block trades, compute average block size. If block trades > 5 in last 5 days AND price rising: "INSTITUTIONAL ACCUMULATION (block trades)." If block trades > 5 AND price falling: "INSTITUTIONAL DISTRIBUTION (block trades)." **Feed limitation:** If using IEX feed (free), only IEX exchange trades are returned — block trade detection is unreliable. Note: "BLOCK TRADES: IEX feed only — partial coverage."
 
 **Post-filter `smart_volume_scanner`:** This returns exchange-wide results. Search the response for $ARGUMENTS. If found, extract that symbol's unusual volume data. If not found, note "No unusual volume detected for $ARGUMENTS" (neutral signal, not negative).
 

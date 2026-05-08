@@ -52,6 +52,28 @@ Using 1-year daily returns from `getFullChart`:
 - If <200 trading days available: fall back to parametric VaR = price × HV × 1.645 (95% confidence). Note: "VaR: PARAMETRIC (insufficient history for historical)."
 - Report: "VaR(95%): ${daily} daily / ${weekly} weekly. CVaR: ${cvar}. Method: {historical/parametric}."
 
+**Bull/Base/Bear Scenario DCF — Track A stocks only:**
+Skip for Track B (growth stocks with P/E >40 OR growth >20%). Track B stocks use PEG as primary metric; single-stage models are inappropriate for high-growth companies. Note: "SCENARIO DCF: N/A for Track B."
+
+WACC = riskFreeRate (10Y from Phase 2 getTreasuryRates) + beta (from Phase 1) × marketRiskPremium (from getMarketRiskPremium)
+
+Two-stage model for each scenario:
+Stage 1 (5-year explicit projection):
+- **Bull (20% weight):** Revenue growth = forward consensus + 5pp (from getAnalystEstimates), margin expansion +2pp
+- **Base (60% weight):** Revenue growth = forward consensus (from getAnalystEstimates), current margins
+- **Bear (20% weight):** Revenue growth = 50% of forward consensus, margin compression -2pp
+- Project FCF for 5 years: FCF_year_n = FCF_current × (1 + scenario_growth)^n × (1 + margin_adjustment)
+
+Stage 2 (terminal value):
+- Terminal value = FCF_year_5 × (1 + terminal_growth) / (WACC_scenario - terminal_growth)
+- Bull terminal growth = 3.5%, WACC - 0.5%. Base = 3%, current WACC. Bear = 2%, WACC + 1%.
+
+Fair Value = sum(PV of Stage 1 FCFs) + PV of Terminal Value
+Probability-weighted FV = Bull×0.20 + Base×0.60 + Bear×0.20
+
+- Use existing bear-case DCF from Phase 9 (calculateCustomDCF bear case) as cross-validation for Bear scenario
+- Report: "Scenario DCF: Bull ${X} / Base ${Y} / Bear ${Z} → Weighted: ${W} ({upside/downside}% vs current)"
+
 **Volatility-Scaled Position Sizing:**
 - **Base risk per trade:** risk_pct = 2% × (15 / current_VIX), capped at [0.5%, 3%].
   - VIX = 15: risk_pct = 2.0% (normal)
