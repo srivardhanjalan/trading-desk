@@ -13,14 +13,7 @@
       "url": "http://localhost:8080/mcp"
     },
     "alpaca": {
-      "command": "uvx",
-      "args": ["alpaca-mcp-server"],
-      "env": {
-        "ALPACA_API_KEY": "${ALPACA_API_KEY}",
-        "ALPACA_SECRET_KEY": "${ALPACA_SECRET_KEY}",
-        "ALPACA_BASE_URL": "${ALPACA_BASE_URL}",
-        "ALPACA_PAPER": "true"
-      }
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/launch-alpaca.sh"
     }
   }
 }

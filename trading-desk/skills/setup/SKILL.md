@@ -121,16 +121,15 @@ Both should return `HTTP 200`. If not, surface the error to the user verbatim.
 Print exactly:
 
 ```
-Setup complete. Two things to do before running /trading-desk:analyze:
+Setup complete. One thing to do before running /trading-desk:analyze:
 
-  1. Source your env file in the shell that launches claude:
-
-       source ~/workspace/secrets/trading-desk/.env
-
-  2. Restart claude so the MCP servers pick up your keys:
+  Restart claude so the MCP servers spawn with your keys:
 
        /quit
        claude
+
+  (You don't need to source .env — bin/launch-alpaca.sh loads it automatically
+  when Claude spawns the Alpaca MCP server.)
 
   Then try: /trading-desk:portfolio
   Or:       /trading-desk:analyze AMD
