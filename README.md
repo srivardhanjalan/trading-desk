@@ -148,7 +148,7 @@ TradingView Desktop is **optional** — the analysis works without it. If Tradin
 
 ## Watchlist
 
-Default 23 stocks: `ALMU, AMD, AMPX, ASX, BBAI, BE, CDNS, CRDO, FIX, FLTCF, GEV, INFQ, KGS, KLTR, LAW, NOK, NOW, NVT, OTLK, PLTR, RBLX, SATS, VXRT`
+Default watchlist is defined in `watchlist.csv` (one symbol per line). Edit that file to add or remove stocks.
 
 ## FMP Budget
 

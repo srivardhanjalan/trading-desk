@@ -17,7 +17,8 @@ set -euo pipefail
 TRADING_DESK="/Users/srivardhanjalan/workspace/trading-desk"
 LOG_DIR="$TRADING_DESK/reports/logs"
 
-WATCHLIST=(ALMU AMD AMPX ASX BBAI BE CDNS CRDO FIX FLTCF GEV INFQ KGS KLTR LAW NOK NOW NVT OTLK PLTR RBLX SATS VXRT)
+# Read watchlist from file (one symbol per line, skip blank lines)
+mapfile -t WATCHLIST < <(grep -v '^\s*$' "$TRADING_DESK/watchlist.csv")
 DELAY_BETWEEN_STOCKS=5     # Seconds between analyses (breathing room)
 MAX_BUDGET_PER_STOCK=8     # USD budget cap per claude -p invocation
 

@@ -33,7 +33,7 @@ Identify: top mover in portfolio (biggest % change), positions with alerts.
 
 ## Step 4: Watchlist After-Hours & Pre-Market (2 FMP calls)
 
-Default watchlist: ALMU, AMD, AMPX, ASX, BBAI, BE, CDNS, CRDO, FIX, FLTCF, GEV, INFQ, KGS, KLTR, LAW, NOK, NOW, NVT, OTLK, PLTR, RBLX, SATS, VXRT
+Default watchlist: Read from `watchlist.csv` in the project root (one symbol per line)
 
 - `mcp__financial-modeling-prep__getBatchAftermarketQuote` with symbol={watchlist comma-separated} — after-hours/pre-market prices. Earnings are released AH — a stock up 8% on earnings is invisible without this.
 - `mcp__financial-modeling-prep__getBatchQuotes` with symbol={watchlist comma-separated} — current quotes with change%, volume
