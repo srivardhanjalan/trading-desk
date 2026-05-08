@@ -19,34 +19,40 @@ Do **not** prompt via `read -p` inside Bash — Claude Code shells out without a
 
 ## Steps
 
-### Step 0 — detect and resolve user-level MCP conflicts
+### Step 0 — detect and resolve MCP config conflicts
 
-If `~/.claude/.mcp.json` exists and declares any of `financial-modeling-prep`, `alpaca`, `tradingview`, or `tradingview-analysis`, those duplicate the plugin's MCPs. Claude Code dedupes by URL/command and the user-level one wins, so the plugin's prefixed tools (`mcp__plugin_trading-desk_*`) won't register and commands fail with prefix-mismatch errors.
+The plugin's `.mcp.json` declares `financial-modeling-prep` (HTTP at `localhost:8080/mcp`), `alpaca`, `tradingview`, and `tradingview-analysis`. If a user-level (`~/.claude/.mcp.json`) OR project-level (`<cwd>/.mcp.json` — typically the trading-desk repo's own legacy file) `.mcp.json` declares any of these names, Claude Code dedupes by URL/command and the non-plugin source wins. The plugin's prefixed tools (`mcp__plugin_trading-desk_*`) silently fail to register and commands break with prefix-mismatch errors.
 
-Detect this and offer to back up the file:
+Check BOTH locations and back up any file that has conflicts:
 
 ```bash
-USER_MCP="$HOME/.claude/.mcp.json"
-if [ -f "$USER_MCP" ]; then
-  CONFLICTS=$(python3 -c "
-import json
-try:
-    d = json.load(open('$USER_MCP'))
-    servers = set(d.get('mcpServers', {}).keys())
-    plugin_servers = {'financial-modeling-prep', 'alpaca', 'tradingview', 'tradingview-analysis'}
-    print(','.join(sorted(servers & plugin_servers)))
-except Exception:
-    pass
-")
-  if [ -n "$CONFLICTS" ]; then
-    echo "WARNING: ~/.claude/.mcp.json declares MCPs that duplicate the plugin: $CONFLICTS"
-    echo "Backing up to ~/.claude/.mcp.json.preplugin.bak so the plugin's prefixed versions take effect."
-    mv "$USER_MCP" "$USER_MCP.preplugin.bak"
-  fi
-fi
+python3 <<'PY'
+import json, os
+PLUGIN_MCPS = {"financial-modeling-prep", "alpaca", "tradingview", "tradingview-analysis"}
+candidates = [
+    os.path.expanduser("~/.claude/.mcp.json"),
+    os.path.expanduser("~/workspace/trading-desk/.mcp.json"),  # repo-root legacy
+    os.path.join(os.getcwd(), ".mcp.json"),                    # current cwd
+]
+seen = set()
+for path in candidates:
+    if path in seen or not os.path.isfile(path):
+        continue
+    seen.add(path)
+    try:
+        data = json.load(open(path))
+        servers = set(data.get("mcpServers", {}).keys())
+        conflicts = servers & PLUGIN_MCPS
+        if conflicts:
+            print(f"WARNING: {path} declares MCPs that duplicate the plugin: {sorted(conflicts)}")
+            os.rename(path, path + ".preplugin.bak")
+            print(f"  → backed up to {path}.preplugin.bak")
+    except Exception as e:
+        print(f"  skip {path}: {e}")
+PY
 ```
 
-Do this BEFORE writing the new `.env` so any error here surfaces early. Also patch a known FSI hooks.json bug if present (empty array `[]` instead of `{}` causes hook-load errors — only fix if file is exactly `[]`):
+Also patch a known FSI plugin bug if present — Claude Code expects `hooks.json` to be `{"hooks": {...}}`. Empty array `[]` or a bare `{}` both fail with "expected record, received undefined". Only patch files that match either bad shape (do NOT touch valid configs):
 
 ```bash
 python3 <<'PY'
@@ -56,8 +62,14 @@ for root in [os.path.expanduser("~/.claude/plugins/marketplaces/financial-servic
     for path in glob.glob(f"{root}/**/hooks.json", recursive=True):
         try:
             data = json.load(open(path))
-            if isinstance(data, list) and not data:
-                open(path, "w").write("{}\n")
+            broken = (
+                (isinstance(data, list)) or
+                (isinstance(data, dict) and "hooks" not in data)
+            )
+            if broken:
+                with open(path, "w") as f:
+                    json.dump({"hooks": {}}, f)
+                    f.write("\n")
                 print(f"patched FSI hooks.json: {path}")
         except Exception:
             pass
