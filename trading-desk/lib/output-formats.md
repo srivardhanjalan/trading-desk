@@ -12,6 +12,18 @@ After writing report files to disk, you MUST also display the complete Compact C
 
 **Variance between runs is a pipeline violation.** If a section has no data (e.g., no congressional trades), display the section header with "None detected" — do NOT omit the section.
 
+### How to render the compact card (HARD)
+
+The canonical compact card is the **16-section Markdown format defined in this file** (Sections 1-16 below). It is NOT a terminal-box format with `═══` lines, NOT a single-screen "punch card", NOT a conversational summary.
+
+To render it correctly:
+1. Open this file with the `Read` tool at the start of synthesis. Do not render the card from memory.
+2. For each of the 16 sections, copy the literal Markdown block as-is and substitute placeholder values (`{SYMBOL}`, `{PRICE}`, etc.) with the computed values from the phase reports.
+3. If a section's data is unavailable, keep the section header and write `Data unavailable — {reason}` inside it. Do not omit the section, do not collapse multiple unavailable sections into one.
+4. Output the rendered card both to the user (in the assistant text) AND to `reports/{SYMBOL}_synthesis.md`.
+
+**Inventing a new layout (e.g., centered ASCII box, single-line per dimension) is a pipeline violation.** The user has explicitly called this out as causing run-to-run inconsistency.
+
 ---
 
 ## Market Hours Header (from `Alpaca: get_clock`)
