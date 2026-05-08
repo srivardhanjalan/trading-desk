@@ -1,11 +1,16 @@
+---
+description: Paper trade via Alpaca with pre-trade safety checks (signal confirmation, risk caps)
+argument-hint: "[buy | sell] [SYMBOL] [AMOUNT_OR_QTY]"
+---
+
 # Paper Trade: $ARGUMENTS
 
 Execute a paper trade on Alpaca with pre-trade safety checks. **Always requires user confirmation before executing.**
 
 **Usage:**
-- `/project:trade buy AMD 1000` — buy $1000 worth of AMD
-- `/project:trade sell AMD 50` — sell 50 shares of AMD
-- `/project:trade buy BTCUSD 500` — buy $500 of BTC (crypto)
+- `/trading-desk:trade buy AMD 1000` — buy $1000 worth of AMD
+- `/trading-desk:trade sell AMD 50` — sell 50 shares of AMD
+- `/trading-desk:trade buy BTCUSD 500` — buy $500 of BTC (crypto)
 
 **Parse $ARGUMENTS:** Extract action (buy/sell), symbol, amount ($ for buy, shares or $ for sell).
 
@@ -13,11 +18,11 @@ Execute a paper trade on Alpaca with pre-trade safety checks. **Always requires 
 
 ## Step 1: Pre-Trade Data (5 calls, parallel)
 
-- `mcp__financial-modeling-prep__getQuote` with symbol={parsed symbol} — current price, change%, volume
-- `mcp__tradingview-analysis__coin_analysis` with symbol={parsed symbol}, exchange, timeframe="1D" — RSI, MACD, trend signal
-- `mcp__alpaca__get_account_info` — equity, buying power, cash
-- `mcp__alpaca__get_all_positions` — all current positions (for concentration check)
-- `mcp__alpaca__get_open_position` with symbol={parsed symbol} — check if already held
+- `mcp__plugin_trading-desk_financial-modeling-prep__getQuote` with symbol={parsed symbol} — current price, change%, volume
+- `mcp__plugin_trading-desk_tradingview-analysis__coin_analysis` with symbol={parsed symbol}, exchange, timeframe="1D" — RSI, MACD, trend signal
+- `mcp__plugin_trading-desk_alpaca__get_account_info` — equity, buying power, cash
+- `mcp__plugin_trading-desk_alpaca__get_all_positions` — all current positions (for concentration check)
+- `mcp__plugin_trading-desk_alpaca__get_open_position` with symbol={parsed symbol} — check if already held
 
 ---
 
@@ -28,7 +33,7 @@ Run ALL checks before proceeding. Block trade if ANY critical check fails.
 ### Critical Blocks (prevent trade execution)
 
 - **OTC stock:** Block. "Cannot paper trade OTC stocks."
-- **Signal contradicts direction:** If buying and coin_analysis shows STRONG SELL, block. "Technical signal contradicts buy direction. Run /project:analyze {SYMBOL} first."
+- **Signal contradicts direction:** If buying and coin_analysis shows STRONG SELL, block. "Technical signal contradicts buy direction. Run /trading-desk:analyze {SYMBOL} first."
 - **Insufficient buying power:** If buying and buying_power < amount, block. "Insufficient buying power: ${buying_power} available, ${amount} requested."
 - **Buying power buffer:** If buy would leave < $100 buying power, block. "Would leave < $100 buying power."
 - **Position doesn't exist:** If selling and no position held, block. "No position in {SYMBOL} to sell."
@@ -84,7 +89,7 @@ Confirm? (yes/no)
 After user confirms:
 
 **For stock buy:**
-- Call `mcp__alpaca__place_stock_order` with:
+- Call `mcp__plugin_trading-desk_alpaca__place_stock_order` with:
   - symbol={symbol}
   - qty={shares}
   - side="buy"
@@ -92,7 +97,7 @@ After user confirms:
   - time_in_force="day"
 
 **For stock sell:**
-- Call `mcp__alpaca__place_stock_order` with:
+- Call `mcp__plugin_trading-desk_alpaca__place_stock_order` with:
   - symbol={symbol}
   - qty={shares}
   - side="sell"
@@ -100,7 +105,7 @@ After user confirms:
   - time_in_force="day"
 
 **For crypto:**
-- Call `mcp__alpaca__place_crypto_order` with:
+- Call `mcp__plugin_trading-desk_alpaca__place_crypto_order` with:
   - symbol={symbol}
   - notional={amount} (for $ amount) or qty={qty}
   - side={buy/sell}
@@ -115,4 +120,4 @@ After order executes:
 - Display order confirmation with order ID
 - Show updated position (if buy) or remaining position (if sell)
 - Show updated buying power
-- Offer: "Run `/project:portfolio` to see updated dashboard"
+- Offer: "Run `/trading-desk:portfolio` to see updated dashboard"

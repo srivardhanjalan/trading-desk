@@ -1,8 +1,13 @@
+---
+description: Sentiment + options flow + insider trades + backtest validation
+argument-hint: "[SYMBOL]"
+---
+
 # Sentiment & Options Analysis: $ARGUMENTS
 
 Run Phases 10, 11, 12, 13, 14 for the given symbol. This is a standalone entry point for sentiment, options, institutional, and backtesting analysis.
 
-**Before starting:** Read `.claude/commands/_shared/error-handling.md`. If running standalone, you'll need the current price from `mcp__financial-modeling-prep__getCompanyProfile` for options chain filtering.
+**Before starting:** Read `${CLAUDE_PLUGIN_ROOT}/commands/${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md`. If running standalone, you'll need the current price from `mcp__plugin_trading-desk_financial-modeling-prep__getCompanyProfile` for options chain filtering.
 
 ---
 
@@ -12,7 +17,7 @@ Run Phases 10, 11, 12, 13, 14 for the given symbol. This is a standalone entry p
 
 Get the current price first (from Phase 1 data or a quick `getCompanyProfile` call).
 
-- Call `mcp__alpaca__get_option_chain` with:
+- Call `mcp__plugin_trading-desk_alpaca__get_option_chain` with:
   - underlying_symbol=$ARGUMENTS
   - type="call"
   - strike_price_gte={price * 0.9} (ATM - 10%)
@@ -21,9 +26,9 @@ Get the current price first (from Phase 1 data or a quick `getCompanyProfile` ca
   - expiration_date_lte={today + 45 days YYYY-MM-DD}
   - limit=50
 
-- Call `mcp__alpaca__get_option_chain` with same params but type="put"
+- Call `mcp__plugin_trading-desk_alpaca__get_option_chain` with same params but type="put"
 
-- Call `mcp__financial-modeling-prep__getStandardDeviation` with:
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getStandardDeviation` with:
   - symbol=$ARGUMENTS
   - periodLength=30
   - timeframe="1day"
@@ -36,7 +41,7 @@ If `get_option_chain` returns empty: note "No options market for $ARGUMENTS", us
 ### Step 2 — Premium trending (1 call, sequential after Step 1)
 
 - Identify the top 3 contracts by volume from Step 1 results (across both calls and puts)
-- Call `mcp__alpaca__get_option_bars` with:
+- Call `mcp__plugin_trading-desk_alpaca__get_option_bars` with:
   - symbols={top 3 contract symbols, comma-separated}
   - timeframe="1Day"
   - start={7 days ago YYYY-MM-DD}
@@ -78,10 +83,10 @@ After computing all 10 metrics, cross-reference against Phase 11 earnings calend
 
 ### Step 1 — Multi-platform sentiment + news (23-26 calls, parallel)
 
-- `mcp__tradingview-analysis__market_sentiment` with symbol=$ARGUMENTS, market="stocks" — Reddit sentiment across r/stocks, r/wsb, r/investing, r/options
-- `mcp__tradingview-analysis__multi_agent_analysis` with symbol=$ARGUMENTS, exchange from Phase 1, timeframe="1D" — 3-agent debate: Technical + Sentiment + Risk Manager
-- `mcp__tradingview-analysis__financial_news` with symbol=$ARGUMENTS, category="stocks", limit=10 — real-time RSS feeds from Reuters, CoinDesk, etc. Captures breaking news faster than FMP indexing.
-- `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=10 — headlines with URLs (URLs used in Step 2)
+- `mcp__plugin_trading-desk_tradingview-analysis__market_sentiment` with symbol=$ARGUMENTS, market="stocks" — Reddit sentiment across r/stocks, r/wsb, r/investing, r/options
+- `mcp__plugin_trading-desk_tradingview-analysis__multi_agent_analysis` with symbol=$ARGUMENTS, exchange from Phase 1, timeframe="1D" — 3-agent debate: Technical + Sentiment + Risk Manager
+- `mcp__plugin_trading-desk_tradingview-analysis__financial_news` with symbol=$ARGUMENTS, category="stocks", limit=10 — real-time RSS feeds from Reuters, CoinDesk, etc. Captures breaking news faster than FMP indexing.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=10 — headlines with URLs (URLs used in Step 2)
 - `WebSearch` query: "$ARGUMENTS stock twitter sentiment {current_year}" — Twitter/X sentiment (fastest-moving platform)
 - `WebSearch` query: "$ARGUMENTS site:stocktwits.com" — StockTwits sentiment (has built-in bullish/bearish tagging)
 - `WebSearch` query: "$ARGUMENTS short interest history trend {current_year}" — short interest % of float AND trend data. Extract SI% at multiple dates for 3-month trend direction (rising/falling/stable). High SI + approaching earnings = squeeze catalyst. SI > 10% AND rising = -1 Risk. SI > 20% + days to cover > 5 = "SQUEEZE POTENTIAL" flag.
@@ -94,30 +99,30 @@ After computing all 10 metrics, cross-reference against Phase 11 earnings calend
 
 **Data provenance note:** WebSearch for Twitter/StockTwits returns articles ABOUT platform sentiment, not actual platform data. Always label the source accurately: 'Twitter/X (via news reports)' or 'StockTwits (via editorial summary)' — never imply direct platform access. If actual bull/bear ratios from the platform are not obtainable, note this limitation. If the `market_sentiment` MCP tool returns platform-specific data, that IS first-party data and should be labeled accordingly.
 
-- `mcp__financial-modeling-prep__searchInsiderTrades` with symbol=$ARGUMENTS, limit=10 — insider buys/sells with $ amounts. **Apply recency weighting:** trades within 30d = 1.0x weight, 31-90d = 0.7x, 91-180d = 0.4x, >180d = 0.2x (only trades within 90 days affect score floor/ceiling). Derive net buy/sell ratio. Weight by: C-suite buys >$1M OR >0.5% of market cap (whichever is lower for <$5B companies) = strong signal.
-- `mcp__financial-modeling-prep__getInsiderTradeStatistics` with symbol=$ARGUMENTS — pre-computed net insider buying/selling ratio and trend. Complements raw trade data.
-- `mcp__financial-modeling-prep__getLatestInsiderTrading` with symbol=$ARGUMENTS, limit=5 — most recent insider transactions. May capture trades not yet in searchInsiderTrades.
+- `mcp__plugin_trading-desk_financial-modeling-prep__searchInsiderTrades` with symbol=$ARGUMENTS, limit=10 — insider buys/sells with $ amounts. **Apply recency weighting:** trades within 30d = 1.0x weight, 31-90d = 0.7x, 91-180d = 0.4x, >180d = 0.2x (only trades within 90 days affect score floor/ceiling). Derive net buy/sell ratio. Weight by: C-suite buys >$1M OR >0.5% of market cap (whichever is lower for <$5B companies) = strong signal.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getInsiderTradeStatistics` with symbol=$ARGUMENTS — pre-computed net insider buying/selling ratio and trend. Complements raw trade data.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getLatestInsiderTrading` with symbol=$ARGUMENTS, limit=5 — most recent insider transactions. May capture trades not yet in searchInsiderTrades.
 - **10b5-1 verification (REQUIRED):** FMP does not return 10b5-1 plan status. After getting insider trades, run `WebSearch` query: `{SYMBOL} "{INSIDER_NAME}" 10b5-1 plan {year} SEC Form 4` for each insider with sales >$1M. The SEC Form 4 footnotes explicitly state whether sales were under a pre-arranged Rule 10b5-1 plan and the plan adoption date. Report as **confirmed 10b5-1** (with adoption date) or **discretionary sale** — never say "likely."
-- `mcp__financial-modeling-prep__getSenateTrades` with symbol=$ARGUMENTS — always called. Empty = "No Senate activity"
-- `mcp__financial-modeling-prep__getHouseTrades` with symbol=$ARGUMENTS — always called. Empty = "No House activity"
-- `mcp__financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=10 — official corporate press releases. Primary source for contract announcements, product launches, partnerships. Feeds into Extension Catalyst Exception check.
-- `mcp__financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS, limit=10 — analyst price target changes with article links. Shows WHICH analysts changed targets, old vs new price, and the reasoning. Critical for detecting recent upgrades/downgrades that move the stock.
-- `mcp__financial-modeling-prep__getStockGradeNews` with symbol=$ARGUMENTS, limit=10 — analyst rating changes (upgrade/downgrade/initiation). Shows grading firm, previous vs new grade, action taken. Feeds directly into Analyst sentiment sub-score.
-- `mcp__financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 30 days} — returns ALL companies' earnings (no symbol filter). Must search response for $ARGUMENTS. Alternatively, use `getEarningsReports` from Phase 9 for per-symbol dates.
-- `mcp__alpaca__get_corporate_actions` with symbol=$ARGUMENTS — upcoming splits, dividends, spin-offs, mergers within 30 days. Reverse split could trigger stop-losses. Feeds into Risk scoring.
-- `mcp__financial-modeling-prep__getAftermarketQuote` with symbol=$ARGUMENTS — after-hours bid/ask, price, volume. **Only call when market is CLOSED** (check `is_open` from Phase 0). During market hours, skip or flag "STALE AH DATA." **Critical for earnings reaction detection.** Shows immediate post-earnings institutional sentiment before next open.
-- `mcp__financial-modeling-prep__getAftermarketTrade` with symbol=$ARGUMENTS — AH trade prices, sizes, timestamps. **Only call when market is CLOSED.** **Large block trades in AH = institutional conviction.** Multiple 10K+ share blocks at increasing prices = strong accumulation signal.
-- `mcp__financial-modeling-prep__searchStockNews` with symbol=$ARGUMENTS, limit=10 — symbol-specific news search. More targeted than general `getStockNews` feed. Better hit rate for sentiment analysis.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getSenateTrades` with symbol=$ARGUMENTS — always called. Empty = "No Senate activity"
+- `mcp__plugin_trading-desk_financial-modeling-prep__getHouseTrades` with symbol=$ARGUMENTS — always called. Empty = "No House activity"
+- `mcp__plugin_trading-desk_financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=10 — official corporate press releases. Primary source for contract announcements, product launches, partnerships. Feeds into Extension Catalyst Exception check.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS, limit=10 — analyst price target changes with article links. Shows WHICH analysts changed targets, old vs new price, and the reasoning. Critical for detecting recent upgrades/downgrades that move the stock.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getStockGradeNews` with symbol=$ARGUMENTS, limit=10 — analyst rating changes (upgrade/downgrade/initiation). Shows grading firm, previous vs new grade, action taken. Feeds directly into Analyst sentiment sub-score.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 30 days} — returns ALL companies' earnings (no symbol filter). Must search response for $ARGUMENTS. Alternatively, use `getEarningsReports` from Phase 9 for per-symbol dates.
+- `mcp__plugin_trading-desk_alpaca__get_corporate_actions` with symbol=$ARGUMENTS — upcoming splits, dividends, spin-offs, mergers within 30 days. Reverse split could trigger stop-losses. Feeds into Risk scoring.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getAftermarketQuote` with symbol=$ARGUMENTS — after-hours bid/ask, price, volume. **Only call when market is CLOSED** (check `is_open` from Phase 0). During market hours, skip or flag "STALE AH DATA." **Critical for earnings reaction detection.** Shows immediate post-earnings institutional sentiment before next open.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getAftermarketTrade` with symbol=$ARGUMENTS — AH trade prices, sizes, timestamps. **Only call when market is CLOSED.** **Large block trades in AH = institutional conviction.** Multiple 10K+ share blocks at increasing prices = strong accumulation signal.
+- `mcp__plugin_trading-desk_financial-modeling-prep__searchStockNews` with symbol=$ARGUMENTS, limit=10 — symbol-specific news search. More targeted than general `getStockNews` feed. Better hit rate for sentiment analysis.
 - `WebSearch` query: "$ARGUMENTS stock news {current_year}" — **MANDATORY companion to searchStockNews.** Captures analyst initiations, blog commentary, CNBC/Bloomberg articles, and breaking news that FMP may not index. **ALWAYS use BOTH FMP searchStockNews AND WebSearch for news — never one without the other.**
-- `mcp__financial-modeling-prep__searchPressReleases` with symbol=$ARGUMENTS, limit=10 — symbol-specific press releases. Catches pre-earnings guidance revisions, contract wins, partnership announcements. **Feeds into Extension Catalyst Exception.**
-- `mcp__financial-modeling-prep__getFilingsBySymbol` with symbol=$ARGUMENTS, limit=10 — recent SEC filings (8-K, 10-Q, etc.). **8-K filings signal material events** — guidance changes, exec departures, major contracts. A cluster of 8-Ks before earnings = something is happening.
-- `mcp__financial-modeling-prep__getDividends` with symbol=$ARGUMENTS — dividend history and yield trend. Rising dividends = shareholder return commitment. Dividend cuts = major negative signal. Feeds into Fundamental and Risk scoring.
-- `mcp__financial-modeling-prep__getDividendsCalendar` with from={today}, to={today + 30 days} — upcoming ex-dividend dates. POST-FILTER for symbol. Ex-div within 5 days affects near-term price support.
-- `mcp__financial-modeling-prep__getStockSplitCalendar` with from={today}, to={today + 60 days} — upcoming stock splits. POST-FILTER for symbol. Forward splits increase retail interest; reverse splits are often bearish.
-- `mcp__financial-modeling-prep__searchEquityOfferings` with symbol=$ARGUMENTS — recent equity/debt offerings. Secondary offerings (dilution) are material negative signals. Convertible notes add future dilution risk. Feeds into Risk scoring.
-- `mcp__financial-modeling-prep__getLatest8KFilings` — most recent material event filings across all companies. POST-FILTER for symbol. Clusters of 8-Ks near earnings signal material events in progress.
+- `mcp__plugin_trading-desk_financial-modeling-prep__searchPressReleases` with symbol=$ARGUMENTS, limit=10 — symbol-specific press releases. Catches pre-earnings guidance revisions, contract wins, partnership announcements. **Feeds into Extension Catalyst Exception.**
+- `mcp__plugin_trading-desk_financial-modeling-prep__getFilingsBySymbol` with symbol=$ARGUMENTS, limit=10 — recent SEC filings (8-K, 10-Q, etc.). **8-K filings signal material events** — guidance changes, exec departures, major contracts. A cluster of 8-Ks before earnings = something is happening.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getDividends` with symbol=$ARGUMENTS — dividend history and yield trend. Rising dividends = shareholder return commitment. Dividend cuts = major negative signal. Feeds into Fundamental and Risk scoring.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getDividendsCalendar` with from={today}, to={today + 30 days} — upcoming ex-dividend dates. POST-FILTER for symbol. Ex-div within 5 days affects near-term price support.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getStockSplitCalendar` with from={today}, to={today + 60 days} — upcoming stock splits. POST-FILTER for symbol. Forward splits increase retail interest; reverse splits are often bearish.
+- `mcp__plugin_trading-desk_financial-modeling-prep__searchEquityOfferings` with symbol=$ARGUMENTS — recent equity/debt offerings. Secondary offerings (dilution) are material negative signals. Convertible notes add future dilution risk. Feeds into Risk scoring.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getLatest8KFilings` — most recent material event filings across all companies. POST-FILTER for symbol. Clusters of 8-Ks near earnings signal material events in progress.
 
-**Crypto route:** `market_sentiment` + `multi_agent_analysis` + `mcp__financial-modeling-prep__searchCryptoNews` + `WebSearch` Twitter. Skip insider/congressional/corporate actions.
+**Crypto route:** `market_sentiment` + `multi_agent_analysis` + `mcp__plugin_trading-desk_financial-modeling-prep__searchCryptoNews` + `WebSearch` Twitter. Skip insider/congressional/corporate actions.
 
 ### Step 2 — Full-text news NLP (4-5 calls, sequential after Step 1)
 
@@ -142,10 +147,10 @@ If fewer than 4 of 6 items are completed, add 'NEWS NLP: INCOMPLETE' warning to 
 ## Phase 12: Institutional Ownership
 
 **4 calls, parallel:**
-- Call `mcp__financial-modeling-prep__getPositionsSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter}
-- Call `mcp__financial-modeling-prep__getHolderPerformanceSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **Are the institutional holders good investors?** If high-alpha funds (those outperforming S&P 500) are accumulating, this is a stronger signal than generic institutional buying. Cathie Wood selling while Renaissance buying = trust Renaissance.
-- Call `mcp__financial-modeling-prep__getForm13FFilingDates` with symbol=$ARGUMENTS — exact filing dates for the symbol's institutional holders. Detects STALE vs FRESH 13F data and identifies which funds filed most recently.
-- Call `mcp__financial-modeling-prep__getHolderIndustryBreakdown` with symbol=$ARGUMENTS — which industries/sectors the institutional holders come from. If holders are concentrated in one industry (e.g., all tech funds), a sector rotation would trigger correlated selling.
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getPositionsSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter}
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getHolderPerformanceSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **Are the institutional holders good investors?** If high-alpha funds (those outperforming S&P 500) are accumulating, this is a stronger signal than generic institutional buying. Cathie Wood selling while Renaissance buying = trust Renaissance.
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getForm13FFilingDates` with symbol=$ARGUMENTS — exact filing dates for the symbol's institutional holders. Detects STALE vs FRESH 13F data and identifies which funds filed most recently.
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getHolderIndustryBreakdown` with symbol=$ARGUMENTS — which industries/sectors the institutional holders come from. If holders are concentrated in one industry (e.g., all tech funds), a sector rotation would trigger correlated selling.
 
 **13F filing lag:** Use the most recent quarter Q where (Q_end_date + 45 days) < today. This guarantees all filings for that quarter are past deadline.
 Example: On May 4, 2026: Q1 ends Mar 31, deadline May 15 — NOT past → skip. Q4 ends Dec 31, deadline Feb 14 — past → USE Q4 2025.
@@ -160,7 +165,7 @@ Empty = "No institutional data this quarter" (normal for micro-caps).
 ## Phase 13: Earnings Deep Dive
 
 **0-1 call (conditional):**
-- Call `mcp__financial-modeling-prep__getEarningsTranscript` with symbol=$ARGUMENTS, year={most recent earnings year}, quarter={most recent earnings quarter}
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getEarningsTranscript` with symbol=$ARGUMENTS, year={most recent earnings year}, quarter={most recent earnings quarter}
 - **Only fetch if:** earnings within 30 days (from Phase 11 calendar) OR analyzing most recent quarter. Skip otherwise to manage context size (transcripts are 50-100KB).
 - If fetched: analyze for tone (bullish/cautious/defensive), key themes, forward guidance language, risk flags, management confidence level.
 
@@ -170,9 +175,9 @@ Empty = "No institutional data this quarter" (normal for micro-caps).
 
 ### Step 1 — TV-Analysis backtesting (3 calls, sequential)
 
-- Call `mcp__tradingview-analysis__compare_strategies` with symbol=$ARGUMENTS, period="1y" — ranked leaderboard: RSI, Bollinger, MACD, EMA Cross, Supertrend, Donchian. **Extract Buy-and-Hold return from the response** (usually included as benchmark). If not in response, compute from Phase 1 price change data (1Y return).
-- Call `mcp__tradingview-analysis__backtest_strategy` with symbol=$ARGUMENTS, strategy={best from compare_strategies}, include_trade_log=false — win rate, Sharpe, max drawdown, profit factor, **total trade count**
-- Call `mcp__tradingview-analysis__walk_forward_backtest_strategy` with symbol=$ARGUMENTS, strategy={best strategy}, period="3y" — overfit validation on unseen data. **Use 3y (not 2y) to ensure in-sample and out-of-sample windows do not overlap.** Report robustness score and out-of-sample trade count.
+- Call `mcp__plugin_trading-desk_tradingview-analysis__compare_strategies` with symbol=$ARGUMENTS, period="1y" — ranked leaderboard: RSI, Bollinger, MACD, EMA Cross, Supertrend, Donchian. **Extract Buy-and-Hold return from the response** (usually included as benchmark). If not in response, compute from Phase 1 price change data (1Y return).
+- Call `mcp__plugin_trading-desk_tradingview-analysis__backtest_strategy` with symbol=$ARGUMENTS, strategy={best from compare_strategies}, include_trade_log=false — win rate, Sharpe, max drawdown, profit factor, **total trade count**
+- Call `mcp__plugin_trading-desk_tradingview-analysis__walk_forward_backtest_strategy` with symbol=$ARGUMENTS, strategy={best strategy}, period="3y" — overfit validation on unseen data. **Use 3y (not 2y) to ensure in-sample and out-of-sample windows do not overlap.** Report robustness score and out-of-sample trade count.
 
 **Scoring gates (apply in order during Phase 16):**
 1. **Trade count gate:** <5 trades → cap score at 2. 5-9 → cap 4. 10-14 → cap 6. ≥15 → no cap.
@@ -181,8 +186,8 @@ Empty = "No institutional data this quarter" (normal for micro-caps).
 
 ### Step 2 — Desktop cross-validation (2 calls, conditional on Desktop running)
 
-- Call `mcp__tradingview__data_get_strategy_results` — TradingView's native Strategy Tester: commission/slippage modeling, equity curve, individual trade P&L
-- Call `mcp__tradingview__data_get_equity` — equity curve data: drawdown periods, recovery time, consistency
+- Call `mcp__plugin_trading-desk_tradingview__data_get_strategy_results` — TradingView's native Strategy Tester: commission/slippage modeling, equity curve, individual trade P&L
+- Call `mcp__plugin_trading-desk_tradingview__data_get_equity` — equity curve data: drawdown periods, recovery time, consistency
 
 **Cross-validation rule:** If TV-Analysis backtest return diverges from Desktop Strategy Tester by >20%, flag "OVERFIT WARNING" and cap Backtest score at 5.
 

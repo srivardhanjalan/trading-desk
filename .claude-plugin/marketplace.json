@@ -1,0 +1,16 @@
+{
+  "name": "srivardhanjalan",
+  "owner": {
+    "name": "Srivardhan Jalan"
+  },
+  "plugins": [
+    {
+      "name": "trading-desk",
+      "source": "./trading-desk",
+      "description": "Institutional-grade stock analysis and paper trading: 16-phase pipeline, 8-dimension scoring, FMP + Alpaca + TradingView MCPs.",
+      "version": "1.0.0",
+      "category": "finance",
+      "tags": ["trading", "stocks", "analysis", "paper-trading"]
+    }
+  ]
+}

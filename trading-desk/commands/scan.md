@@ -1,11 +1,16 @@
+---
+description: Scan the watchlist, specific symbols, or discover new candidates via FMP screener
+argument-hint: "[watchlist | discover | SYMBOLS]"
+---
+
 # Watchlist Scan: $ARGUMENTS
 
 Scan multiple stocks with condensed analysis and rank by composite score.
 
 **Usage:**
-- `/project:scan watchlist` — scan the default 16-stock watchlist
-- `/project:scan AAPL,MSFT,NVDA` — scan specific symbols
-- `/project:scan discover` — use FMP stockScreener to find NEW stocks, then analyze top 10
+- `/trading-desk:scan watchlist` — scan the default 16-stock watchlist
+- `/trading-desk:scan AAPL,MSFT,NVDA` — scan specific symbols
+- `/trading-desk:scan discover` — use FMP stockScreener to find NEW stocks, then analyze top 10
 
 **Default watchlist:** Read from `watchlist.csv` in the project root (one symbol per line)
 
@@ -15,9 +20,9 @@ Scan multiple stocks with condensed analysis and rank by composite score.
 
 ## Setup
 
-1. Read `_shared/no-skip-policy.md` for mandatory execution rules
-2. Read `_shared/error-handling.md` for FMP tier-aware degradation
-3. Read `_shared/scoring-rubrics.md` for quick scoring
+1. Read `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md` for mandatory execution rules
+2. Read `${CLAUDE_PLUGIN_ROOT}/lib/error-handling.md` for FMP tier-aware degradation
+3. Read `${CLAUDE_PLUGIN_ROOT}/lib/scoring-rubrics.md` for quick scoring
 4. Parse $ARGUMENTS to determine mode:
    - "watchlist" or empty → use default watchlist
    - Comma-separated symbols → use those
@@ -28,7 +33,7 @@ Scan multiple stocks with condensed analysis and rank by composite score.
 ## Discovery Mode (if $ARGUMENTS = "discover")
 
 **1 FMP call to find candidates:**
-- Call `mcp__financial-modeling-prep__stockScreener` with:
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__stockScreener` with:
   - marketCapMoreThan=1000000000 ($1B+)
   - volumeMoreThan=500000
   - sector="Technology" (or user-specified)
@@ -42,9 +47,9 @@ Take top 10 results by volume/momentum. Proceed to scan these 10 stocks.
 ## Macro Context (1x, cached for all stocks)
 
 **3 FMP calls, parallel:**
-- `mcp__financial-modeling-prep__getTreasuryRates` — yields, curve shape
-- `mcp__financial-modeling-prep__getIndexQuote` with symbol="^VIX" — fear gauge
-- `mcp__alpaca__get_clock` — market hours
+- `mcp__plugin_trading-desk_financial-modeling-prep__getTreasuryRates` — yields, curve shape
+- `mcp__plugin_trading-desk_financial-modeling-prep__getIndexQuote` with symbol="^VIX" — fear gauge
+- `mcp__plugin_trading-desk_alpaca__get_clock` — market hours
 
 ---
 
@@ -52,15 +57,15 @@ Take top 10 results by volume/momentum. Proceed to scan these 10 stocks.
 
 **7 FMP + 2 TV-Analysis calls per stock, parallel where possible:**
 
-- `mcp__financial-modeling-prep__getCompanyProfile` — price, change, volume, marketCap, beta, sector, isEtf, isAdr
-- `mcp__financial-modeling-prep__getStockPriceChange` — multi-period momentum (1D/1M/3M/6M/1Y)
-- `mcp__financial-modeling-prep__getFinancialRatiosTTM` — P/E, margins, debt/equity, ROE
-- `mcp__financial-modeling-prep__getFinancialScores` — Piotroski + Z-Score
-- `mcp__financial-modeling-prep__getDCFValuation` — intrinsic value estimate
-- `mcp__financial-modeling-prep__getPriceTargetSummary` — analyst consensus + count
-- **[CALL AFTER other FMP calls complete — do NOT batch in parallel]** `mcp__financial-modeling-prep__getFinancialStatementFullAsReported` with symbol={SYMBOL}, period="annual", limit=1 — quick RPO and customer concentration check from SEC filing XBRL data. **Known issue:** toolception session race condition causes failures when batched with many parallel FMP calls.
-- `mcp__tradingview-analysis__coin_analysis` (symbol, exchange, "1D") — RSI, MACD, support/resistance
-- `mcp__tradingview-analysis__compare_strategies` (symbol, period="1y") — best strategy + return
+- `mcp__plugin_trading-desk_financial-modeling-prep__getCompanyProfile` — price, change, volume, marketCap, beta, sector, isEtf, isAdr
+- `mcp__plugin_trading-desk_financial-modeling-prep__getStockPriceChange` — multi-period momentum (1D/1M/3M/6M/1Y)
+- `mcp__plugin_trading-desk_financial-modeling-prep__getFinancialRatiosTTM` — P/E, margins, debt/equity, ROE
+- `mcp__plugin_trading-desk_financial-modeling-prep__getFinancialScores` — Piotroski + Z-Score
+- `mcp__plugin_trading-desk_financial-modeling-prep__getDCFValuation` — intrinsic value estimate
+- `mcp__plugin_trading-desk_financial-modeling-prep__getPriceTargetSummary` — analyst consensus + count
+- **[CALL AFTER other FMP calls complete — do NOT batch in parallel]** `mcp__plugin_trading-desk_financial-modeling-prep__getFinancialStatementFullAsReported` with symbol={SYMBOL}, period="annual", limit=1 — quick RPO and customer concentration check from SEC filing XBRL data. **Known issue:** toolception session race condition causes failures when batched with many parallel FMP calls.
+- `mcp__plugin_trading-desk_tradingview-analysis__coin_analysis` (symbol, exchange, "1D") — RSI, MACD, support/resistance
+- `mcp__plugin_trading-desk_tradingview-analysis__compare_strategies` (symbol, period="1y") — best strategy + return
 
 ### FMP Tier-Aware Degradation
 
@@ -85,15 +90,15 @@ Quick composite = weighted average of available dimensions, scaled to 0-100.
 
 ## Batch Chart Screenshots (if TradingView Desktop running)
 
-- Call `mcp__tradingview__tv_health_check`
-- If connected: call `mcp__tradingview__batch_run` with symbols={all symbols in list}, action="screenshot"
+- Call `mcp__plugin_trading-desk_tradingview__tv_health_check`
+- If connected: call `mcp__plugin_trading-desk_tradingview__batch_run` with symbols={all symbols in list}, action="screenshot"
 - One call screenshots ALL charts instead of individual calls per stock
 
 ---
 
 ## Output
 
-Use the scan table template from `_shared/output-formats.md`:
+Use the scan table template from `${CLAUDE_PLUGIN_ROOT}/lib/output-formats.md`:
 
 ```
 === Watchlist Scan === {DATE} === {COUNT} stocks ===
@@ -109,7 +114,7 @@ Sort by composite score (descending). Group by coverage tier (Full above Partial
 After table:
 - **Top Picks:** Top 3 with brief reasoning
 - **Flagged:** Stocks with upcoming earnings, extreme RSI, or high risk
-- **Offer:** "Run `/project:analyze {SYMBOL}` for full 16-phase deep dive on any stock"
+- **Offer:** "Run `/trading-desk:analyze {SYMBOL}` for full 16-phase deep dive on any stock"
 
 ### Budget Tracking
 

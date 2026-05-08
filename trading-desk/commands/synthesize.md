@@ -1,3 +1,8 @@
+---
+description: Score and recommend — reads phase reports written by analyze-* and emits compact card
+argument-hint: "[SYMBOL]"
+---
+
 # Synthesize & Recommend: $ARGUMENTS
 
 Run Phases 15, 16, 16b for the given symbol. Reads phase report files, scores all 8 dimensions, produces actionable recommendation.
@@ -6,8 +11,8 @@ Run Phases 15, 16, 16b for the given symbol. Reads phase report files, scores al
 - `reports/{SYMBOL}_technical.md` (from analyze-technical)
 - `reports/{SYMBOL}_fundamental.md` (from analyze-fundamental)
 - `reports/{SYMBOL}_sentiment.md` (from analyze-sentiment)
-- `.claude/commands/_shared/scoring-rubrics.md` (scoring thresholds)
-- `.claude/commands/_shared/output-formats.md` (output templates)
+- `${CLAUDE_PLUGIN_ROOT}/commands/${CLAUDE_PLUGIN_ROOT}/lib/scoring-rubrics.md` (scoring thresholds)
+- `${CLAUDE_PLUGIN_ROOT}/commands/${CLAUDE_PLUGIN_ROOT}/lib/output-formats.md` (output templates)
 
 If any report file is missing, note which phases are unavailable and reduce data completeness accordingly.
 
@@ -17,13 +22,13 @@ If any report file is missing, note which phases are unavailable and reduce data
 
 **9 calls (6 Alpaca + 2 FMP + 1 WebSearch, parallel):**
 
-- Call `mcp__alpaca__get_account_info` — current equity, buying power, cash
-- Call `mcp__alpaca__get_open_position` with symbol=$ARGUMENTS — check if already held, current P&L, quantity
-- Call `mcp__financial-modeling-prep__getStockPriceChange` with symbol=$ARGUMENTS — multi-period price performance (1D, 5D, 1M, 3M, 6M, 1Y) for momentum extension scoring
+- Call `mcp__plugin_trading-desk_alpaca__get_account_info` — current equity, buying power, cash
+- Call `mcp__plugin_trading-desk_alpaca__get_open_position` with symbol=$ARGUMENTS — check if already held, current P&L, quantity
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getStockPriceChange` with symbol=$ARGUMENTS — multi-period price performance (1D, 5D, 1M, 3M, 6M, 1Y) for momentum extension scoring
 - Call `WebSearch` query: "$ARGUMENTS earnings estimate revisions {current_year}" — analyst estimate revision trend from Zacks/Yahoo. Fallback for broken `getAnalystEstimates` (402 error). Rising estimates = bullish catalyst. Falling = headwind.
-- Call `mcp__alpaca__get_portfolio_history` with period="3M", timeframe="1D" — portfolio-level equity curve and drawdown over last 3 months. Used for sector concentration context and portfolio-level risk assessment. If max drawdown >15% in last month, apply more conservative position sizing.
-- Call `mcp__alpaca__get_all_positions` — all current positions for portfolio-level risk assessment (sector concentration, aggregate beta, correlation risk)
-- Call `mcp__financial-modeling-prep__getFullChart` with symbol=$ARGUMENTS, from_date={1 year ago YYYY-MM-DD}, to={today YYYY-MM-DD} — daily OHLCV for historical VaR/CVaR computation (requires 252 trading days of returns)
+- Call `mcp__plugin_trading-desk_alpaca__get_portfolio_history` with period="3M", timeframe="1D" — portfolio-level equity curve and drawdown over last 3 months. Used for sector concentration context and portfolio-level risk assessment. If max drawdown >15% in last month, apply more conservative position sizing.
+- Call `mcp__plugin_trading-desk_alpaca__get_all_positions` — all current positions for portfolio-level risk assessment (sector concentration, aggregate beta, correlation risk)
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getFullChart` with symbol=$ARGUMENTS, from_date={1 year ago YYYY-MM-DD}, to={today YYYY-MM-DD} — daily OHLCV for historical VaR/CVaR computation (requires 252 trading days of returns)
 
 ### Derived Calculations
 
@@ -31,7 +36,7 @@ Using data from all phase reports:
 
 **Momentum Extension Risk (from getStockPriceChange):**
 - Extract 1M and 3M percentage changes
-- Classify into extension category per `_shared/scoring-rubrics.md` "Momentum Extension Modifier":
+- Classify into extension category per `${CLAUDE_PLUGIN_ROOT}/lib/scoring-rubrics.md` "Momentum Extension Modifier":
   - EXTREME: 1M >= 80% OR (1M >= 60% AND 3M >= 120%) → subtract 5
   - SEVERE: 1M in [60%, 80%) OR (1M >= 40% AND 3M >= 90%) → subtract 4
   - HIGH: 1M in [45%, 60%) OR (1M >= 30% AND 3M >= 60%) → subtract 3
@@ -54,7 +59,7 @@ Using 1-year daily returns from `getFullChart`:
 
 **Bull/Base/Bear Scenario DCF — MANDATORY for Track A, logged skip for Track B:**
 
-**Per `_shared/no-skip-policy.md`, this step MUST be attempted or explicitly logged. Silent skipping is a violation.**
+**Per `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md`, this step MUST be attempted or explicitly logged. Silent skipping is a violation.**
 
 - **Track A (Value):** revenue growth <=20% AND P/E <=40 → **MUST RUN all 3 scenarios.** Call `calculateCustomDCF` 3 times (bull, base, bear) sequentially to avoid session race conditions. If any call fails, retry once after 2 seconds. Log each outcome.
 - **Track B (Growth):** revenue growth >20% OR P/E >40 → Skip is valid, but MUST log: `"SCENARIO DCF: SKIPPED — Track B stock (rev growth {X}%, P/E {Y}x). PEG ratio used as primary valuation metric."`
@@ -155,7 +160,7 @@ Check `getEarningsCalendar` data from Phase 11 or fundamental report:
 
 ### Step 1 — Score all 8 dimensions
 
-Apply `_shared/scoring-rubrics.md` thresholds to data from all phase reports. For each dimension, assign a score 1-10 with brief justification.
+Apply `${CLAUDE_PLUGIN_ROOT}/lib/scoring-rubrics.md` thresholds to data from all phase reports. For each dimension, assign a score 1-10 with brief justification.
 
 **Scoring checklist — ensure all inputs are used:**
 - **Technical:** RSI (exact value), Stochastic (%K/%D exact values), MACD, ADX, timeframe alignment count. Apply ADX-conditional RSI interpretation (if ADX > 35 with +DI > 2x -DI, RSI overbought is trend confirmation — no cap). Apply Volume Direction Modifier (distribution/accumulation on high volume). Cross-validate FMP indicators (RSI, SMA, ADX) vs TradingView — flag divergence >10 points. Check regime (TRENDING/TRANSITIONAL/MEAN-REVERTING) and adjust indicator interpretation. Include Williams %R, DEMA/TEMA/WMA confirmation signals. Check relative strength vs market snapshot.
@@ -283,10 +288,10 @@ Count: phases_with_data / total_phases_attempted. Report as percentage.
 **Only if Desktop is running (check from Phase 6 report).**
 
 **4 calls:**
-- Call `mcp__tradingview__draw_shape` with type="horizontal_line", price={stop_loss}, color="red", text="Stop Loss" — draw computed stop loss on chart
-- Call `mcp__tradingview__draw_shape` with type="horizontal_line", price={take_profit}, color="green", text="Take Profit" — draw computed take profit on chart
-- Call `mcp__tradingview__alert_create` with symbol=$ARGUMENTS, price={stop_loss}, condition="less_than", message="$ARGUMENTS hit stop loss at ${stop_loss}"
-- Call `mcp__tradingview__alert_create` with symbol=$ARGUMENTS, price={take_profit}, condition="greater_than", message="$ARGUMENTS hit take profit at ${take_profit}"
+- Call `mcp__plugin_trading-desk_tradingview__draw_shape` with type="horizontal_line", price={stop_loss}, color="red", text="Stop Loss" — draw computed stop loss on chart
+- Call `mcp__plugin_trading-desk_tradingview__draw_shape` with type="horizontal_line", price={take_profit}, color="green", text="Take Profit" — draw computed take profit on chart
+- Call `mcp__plugin_trading-desk_tradingview__alert_create` with symbol=$ARGUMENTS, price={stop_loss}, condition="less_than", message="$ARGUMENTS hit stop loss at ${stop_loss}"
+- Call `mcp__plugin_trading-desk_tradingview__alert_create` with symbol=$ARGUMENTS, price={take_profit}, condition="greater_than", message="$ARGUMENTS hit take profit at ${take_profit}"
 
 If Desktop unavailable: skip — levels are shown in text output.
 
@@ -312,7 +317,7 @@ date,symbol,composite,signal,technical,fundamental,valuation,sentiment,smart_mon
 
 ### Display compact card
 
-Use the compact card template from `_shared/output-formats.md`. Fill all fields from the phase reports and computed values. Include:
+Use the compact card template from `${CLAUDE_PLUGIN_ROOT}/lib/output-formats.md`. Fill all fields from the phase reports and computed values. Include:
 
 - Market hours header (from Phase 0)
 - All 8 dimension scores

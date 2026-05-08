@@ -2,7 +2,7 @@
 
 Apply to EVERY MCP tool call across all phases.
 
-**See also:** `_shared/no-skip-policy.md` — errors must be LOGGED, never silently skipped. Every step must end as COMPLETED, FAILED (with reason), or N/A (with asset-type justification).
+**See also:** `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md` — errors must be LOGGED, never silently skipped. Every step must end as COMPLETED, FAILED (with reason), or N/A (with asset-type justification).
 
 ---
 

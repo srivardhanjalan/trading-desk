@@ -1,0 +1,12 @@
+{
+  "name": "trading-desk",
+  "version": "1.0.0",
+  "description": "Institutional-grade stock analysis and paper trading: 16-phase pipeline, 8-dimension scoring, FMP + Alpaca + TradingView MCPs.",
+  "author": {
+    "name": "Srivardhan Jalan"
+  },
+  "homepage": "https://github.com/srivardhanjalan/trading-desk",
+  "repository": "https://github.com/srivardhanjalan/trading-desk",
+  "license": "MIT",
+  "keywords": ["trading", "stocks", "analysis", "paper-trading", "alpaca", "fmp", "tradingview"]
+}

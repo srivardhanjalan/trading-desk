@@ -2,12 +2,12 @@
 
 Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP servers + WebSearch/WebFetch.
 
-**MANDATORY:** Follow `_shared/no-skip-policy.md`. Every step must be ATTEMPTED, FAILED (with reason), or marked N/A (with asset-type justification). Silent skipping is a pipeline violation.
+**MANDATORY:** Follow `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md`. Every step must be ATTEMPTED, FAILED (with reason), or marked N/A (with asset-type justification). Silent skipping is a pipeline violation.
 
 ---
 
 ## Setup
-- [ ] Read `_shared/no-skip-policy.md` (no-skip enforcement rules)
+- [ ] Read `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md` (no-skip enforcement rules)
 - [ ] Read `rules.json` (if exists) for custom risk parameters
 - [ ] Ensure `reports/` directory exists
 - [ ] Note current date for filenames

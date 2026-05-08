@@ -1,3 +1,7 @@
+---
+description: Alpaca paper portfolio dashboard with risk flags, earnings warnings, and P&L analytics
+---
+
 # Portfolio Dashboard: $ARGUMENTS
 
 Display current Alpaca paper trading portfolio with enriched analysis, risk flags, and earnings warnings.
@@ -6,17 +10,17 @@ Display current Alpaca paper trading portfolio with enriched analysis, risk flag
 
 ## Step 1: Account & Positions (4 Alpaca calls, parallel)
 
-- `mcp__alpaca__get_account_info` — equity, buying power, cash, pattern day trader status
-- `mcp__alpaca__get_all_positions` — all open positions with qty, avg cost, current price, P&L, market value
-- `mcp__alpaca__get_portfolio_history` with period="1M", timeframe="1D" — equity curve, daily P&L for last month
-- `mcp__alpaca__get_orders` with status="closed", limit=20 — recent order history
+- `mcp__plugin_trading-desk_alpaca__get_account_info` — equity, buying power, cash, pattern day trader status
+- `mcp__plugin_trading-desk_alpaca__get_all_positions` — all open positions with qty, avg cost, current price, P&L, market value
+- `mcp__plugin_trading-desk_alpaca__get_portfolio_history` with period="1M", timeframe="1D" — equity curve, daily P&L for last month
+- `mcp__plugin_trading-desk_alpaca__get_orders` with status="closed", limit=20 — recent order history
 
 ---
 
 ## Step 2: Activity & Corporate Actions (2 Alpaca calls, parallel)
 
-- `mcp__alpaca__get_account_activities` with limit=20 — fill execution prices, dividend income, interest, fees. Essential for true P&L attribution.
-- For each held position symbol: `mcp__alpaca__get_corporate_actions` — check for upcoming splits, dividends, mergers
+- `mcp__plugin_trading-desk_alpaca__get_account_activities` with limit=20 — fill execution prices, dividend income, interest, fees. Essential for true P&L attribution.
+- For each held position symbol: `mcp__plugin_trading-desk_alpaca__get_corporate_actions` — check for upcoming splits, dividends, mergers
 
 ---
 
@@ -25,8 +29,8 @@ Display current Alpaca paper trading portfolio with enriched analysis, risk flag
 For each position (parallel across positions):
 
 **2 calls per position:**
-- `mcp__financial-modeling-prep__getQuote` with symbol={position symbol} — latest price, volume, 52W range
-- `mcp__tradingview-analysis__coin_analysis` with symbol={position symbol}, exchange, timeframe="1D" — RSI, MACD, support/resistance
+- `mcp__plugin_trading-desk_financial-modeling-prep__getQuote` with symbol={position symbol} — latest price, volume, 52W range
+- `mcp__plugin_trading-desk_tradingview-analysis__coin_analysis` with symbol={position symbol}, exchange, timeframe="1D" — RSI, MACD, support/resistance
 
 Extract per position: current RSI, trend signal, nearest support/resistance.
 
@@ -34,7 +38,7 @@ Extract per position: current RSI, trend signal, nearest support/resistance.
 
 ## Step 4: Earnings Cross-Reference
 
-- `mcp__financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 14 days} — next 2 weeks of earnings (all companies)
+- `mcp__plugin_trading-desk_financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 14 days} — next 2 weeks of earnings (all companies)
 - Cross-reference with held position symbols
 - Flag: "WARNING: You hold {SYMBOL} — earnings on {DATE}"
 - If options data available from a recent /analyze: include expected move
@@ -56,7 +60,7 @@ Check each position for:
 
 ## Output
 
-Use the portfolio dashboard template from `_shared/output-formats.md`:
+Use the portfolio dashboard template from `${CLAUDE_PLUGIN_ROOT}/lib/output-formats.md`:
 
 ```
 === Portfolio Dashboard === {DATE} ===
@@ -75,5 +79,5 @@ Alert column: Key flag (earnings, overbought, concentration, etc.).
 After table:
 - **Alerts section:** All flagged items with details
 - **Recent Activity:** Last 5 fills with execution prices
-- **Offer:** "Run `/project:analyze {SYMBOL}` for full analysis on any position"
-- **Offer:** "Run `/project:trade sell {SYMBOL} {QTY}` to close a position"
+- **Offer:** "Run `/trading-desk:analyze {SYMBOL}` for full analysis on any position"
+- **Offer:** "Run `/trading-desk:trade sell {SYMBOL} {QTY}` to close a position"

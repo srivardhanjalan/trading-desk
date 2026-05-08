@@ -1,8 +1,13 @@
+---
+description: Deep web research — social sentiment (Reddit/Twitter/StockTwits), full-article NLP, M&A rumors
+argument-hint: "[SYMBOL]"
+---
+
 # Deep Research: $ARGUMENTS
 
 Web-augmented deep dive for information not available through financial APIs. Covers social media sentiment beyond Reddit, full article NLP, M&A activity, institutional flow details, and earnings transcript analysis.
 
-**Use this when:** `/project:analyze` has been run and you want deeper context, OR for qualitative research that APIs can't provide.
+**Use this when:** `/trading-desk:analyze` has been run and you want deeper context, OR for qualitative research that APIs can't provide.
 
 ---
 
@@ -19,11 +24,11 @@ For each result set: classify sentiment (bullish/bearish/neutral), extract key t
 
 ## Step 2: Full Article NLP (4-5 WebFetch calls, sequential)
 
-- `mcp__financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=10 — get article URLs
-- `mcp__financial-modeling-prep__searchStockNews` with symbols=$ARGUMENTS, limit=10 — symbol-specific news (more targeted)
-- `mcp__financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS, limit=10 — analyst price target changes with reasoning
-- `mcp__financial-modeling-prep__getStockGradeNews` with symbol=$ARGUMENTS, limit=10 — analyst rating changes (upgrade/downgrade/initiation)
-- `mcp__tradingview-analysis__financial_news` with symbol=$ARGUMENTS, category="stocks", limit=10 — real-time RSS feeds (Reuters, CoinDesk)
+- `mcp__plugin_trading-desk_financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=10 — get article URLs
+- `mcp__plugin_trading-desk_financial-modeling-prep__searchStockNews` with symbols=$ARGUMENTS, limit=10 — symbol-specific news (more targeted)
+- `mcp__plugin_trading-desk_financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS, limit=10 — analyst price target changes with reasoning
+- `mcp__plugin_trading-desk_financial-modeling-prep__getStockGradeNews` with symbol=$ARGUMENTS, limit=10 — analyst rating changes (upgrade/downgrade/initiation)
+- `mcp__plugin_trading-desk_tradingview-analysis__financial_news` with symbol=$ARGUMENTS, category="stocks", limit=10 — real-time RSS feeds (Reuters, CoinDesk)
 - `WebSearch` query: "$ARGUMENTS stock news {current_year}" — **MANDATORY companion to FMP news calls.** Captures analyst initiations, blog commentary, and breaking news that FMP may not index. **ALWAYS use BOTH FMP news tools AND WebSearch — never one without the other.**
 - `WebFetch` the top 4-5 article URLs for full text (deduplicate, prioritize Tier 1 sources)
 
@@ -38,7 +43,7 @@ For each article analyze:
 
 ## Step 3: Company Press Releases (1 FMP call)
 
-- `mcp__financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=15 — official company announcements
+- `mcp__plugin_trading-desk_financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=15 — official company announcements
 
 Analyze for: product launches, partnerships, guidance updates, executive changes, legal matters.
 
@@ -46,7 +51,7 @@ Analyze for: product launches, partnerships, guidance updates, executive changes
 
 ## Step 4: M&A Activity (2 calls, parallel)
 
-- `mcp__financial-modeling-prep__searchMergersAcquisitions` with name={company name from profile} — check for M&A activity
+- `mcp__plugin_trading-desk_financial-modeling-prep__searchMergersAcquisitions` with name={company name from profile} — check for M&A activity
 - `WebSearch` query: "$ARGUMENTS acquisition merger {current_year}" — breaking M&A news not yet in filings
 
 Flag: active acquirer (growth by acquisition risk), takeover target (potential premium), or no activity.
@@ -55,7 +60,7 @@ Flag: active acquirer (growth by acquisition risk), takeover target (potential p
 
 ## Step 5: Institutional Deep Dive (1 FMP call)
 
-- `mcp__financial-modeling-prep__getFilingExtractAnalyticsByHolder` with symbol=$ARGUMENTS, year={current}, quarter={adjusted per 13F lag} — which specific funds bought/sold, portfolio weight changes, new positions vs exits
+- `mcp__plugin_trading-desk_financial-modeling-prep__getFilingExtractAnalyticsByHolder` with symbol=$ARGUMENTS, year={current}, quarter={adjusted per 13F lag} — which specific funds bought/sold, portfolio weight changes, new positions vs exits
 
 Note: This is the detailed fund-by-fund analysis that the main /analyze pipeline defers to /research (main pipeline uses `getPositionsSummary` for the overview).
 
@@ -63,7 +68,7 @@ Note: This is the detailed fund-by-fund analysis that the main /analyze pipeline
 
 ## Step 6: Earnings Transcript Analysis (1 FMP call, if not already done)
 
-- `mcp__financial-modeling-prep__getEarningsTranscript` with symbol=$ARGUMENTS, year={most recent}, quarter={most recent}
+- `mcp__plugin_trading-desk_financial-modeling-prep__getEarningsTranscript` with symbol=$ARGUMENTS, year={most recent}, quarter={most recent}
 
 Full NLP analysis:
 - **Management tone:** Confident/cautious/defensive? Count hedging language ("uncertain", "challenging", "headwinds") vs confidence language ("strong", "accelerating", "exceeding")

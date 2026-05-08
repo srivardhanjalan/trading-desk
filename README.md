@@ -1,23 +1,43 @@
 # Trading Desk
 
-Institutional-grade stock analysis and paper trading system powered by [Claude Code](https://claude.ai/code) project commands. Connects 4 MCP servers to deliver a 16-phase analysis pipeline with 8-dimension scoring, position sizing, and actionable BUY/SELL/HOLD recommendations.
+Institutional-grade stock analysis and paper trading, packaged as a [Claude Code](https://claude.ai/code) plugin. Connects 4 MCP servers to deliver a 16-phase analysis pipeline with 8-dimension scoring, position sizing, and actionable BUY/SELL/HOLD recommendations.
 
-## Quick Start
+## Quick Start (recommended — plugin install)
+
+In any Claude Code session:
+
+```
+/plugin marketplace add srivardhanjalan/trading-desk
+/plugin install trading-desk@srivardhanjalan
+/trading-desk:setup
+```
+
+The `setup` skill prompts for your FMP and Alpaca keys, writes them to `~/workspace/secrets/trading-desk/.env`, clones the optional TradingView Desktop MCP into `${CLAUDE_PLUGIN_DATA}`, and starts the FMP server.
+
+Then in a new shell:
+```bash
+source ~/workspace/secrets/trading-desk/.env
+claude
+```
+
+And try:
+```
+/trading-desk:morning-brief
+/trading-desk:analyze AMD
+/trading-desk:scan watchlist
+```
+
+## Alternative: clone-and-run (no plugin)
 
 ```bash
 git clone https://github.com/srivardhanjalan/trading-desk.git
 cd trading-desk
 ./setup.sh          # installs everything, prompts for API keys
 ./start.sh          # starts FMP server (run before each session)
-claude               # open Claude Code
+claude              # open Claude Code from this directory
 ```
 
-Then try:
-```
-/project:morning-brief
-/project:analyze AMD
-/project:scan watchlist
-```
+Slash commands work the same — `/trading-desk:analyze AMD` etc. Use this path if you want to hack on commands locally without installing a plugin.
 
 ## Prerequisites
 
@@ -62,23 +82,23 @@ After setup, 3 of 4 MCP servers are auto-managed by Claude Code (started on dema
 
 | Command | Description | ~Tool Calls |
 |---------|-------------|-------------|
-| `/project:analyze SYMBOL` | Full 16-phase analysis with 8-dimension scoring | 55-73 |
-| `/project:analyze-technical SYMBOL` | Technical only (price, indicators, volume, chart) | 9-21 |
-| `/project:analyze-fundamental SYMBOL` | Fundamental only (macro, financials, valuation) | 23 |
-| `/project:analyze-sentiment SYMBOL` | Sentiment, options, insiders, backtesting | 24-30 |
-| `/project:synthesize SYMBOL` | Score and recommend (reads phase reports) | 3-8 |
-| `/project:scan watchlist` | Scan all stocks in `watchlist.csv` | ~131 |
-| `/project:scan discover` | Find new stocks via FMP screener | ~64 |
-| `/project:scan AAPL,MSFT,NVDA` | Scan specific symbols | varies |
-| `/project:portfolio` | Alpaca portfolio dashboard + risk flags | 12+ |
-| `/project:trade buy AMD 1000` | Paper trade with safety checks | 6 |
-| `/project:morning-brief` | Daily market briefing | 32 |
-| `/project:research SYMBOL` | Deep web research (social, NLP, M&A) | 15 |
-| `/project:compare AMD NVDA` | Side-by-side comparison | 18 |
+| `/trading-desk:analyze SYMBOL` | Full 16-phase analysis with 8-dimension scoring | 55-73 |
+| `/trading-desk:analyze-technical SYMBOL` | Technical only (price, indicators, volume, chart) | 9-21 |
+| `/trading-desk:analyze-fundamental SYMBOL` | Fundamental only (macro, financials, valuation) | 23 |
+| `/trading-desk:analyze-sentiment SYMBOL` | Sentiment, options, insiders, backtesting | 24-30 |
+| `/trading-desk:synthesize SYMBOL` | Score and recommend (reads phase reports) | 3-8 |
+| `/trading-desk:scan watchlist` | Scan all stocks in `watchlist.csv` | ~131 |
+| `/trading-desk:scan discover` | Find new stocks via FMP screener | ~64 |
+| `/trading-desk:scan AAPL,MSFT,NVDA` | Scan specific symbols | varies |
+| `/trading-desk:portfolio` | Alpaca portfolio dashboard + risk flags | 12+ |
+| `/trading-desk:trade buy AMD 1000` | Paper trade with safety checks | 6 |
+| `/trading-desk:morning-brief` | Daily market briefing | 32 |
+| `/trading-desk:research SYMBOL` | Deep web research (social, NLP, M&A) | 15 |
+| `/trading-desk:compare AMD NVDA` | Side-by-side comparison | 18 |
 
 ## The 16-Phase Pipeline
 
-`/project:analyze SYMBOL` runs these phases in a single conversation:
+`/trading-desk:analyze SYMBOL` runs these phases in a single conversation:
 
 | Phase | What | Key Tools |
 |-------|------|-----------|
@@ -185,15 +205,16 @@ Some FMP tools (`getFinancialStatementFullAsReported`, `calculateCustomDCF`) fai
 
 ## Watchlist
 
-The watchlist is defined in `watchlist.csv` (one symbol per line). All commands and automation scripts read from this single file.
+The default watchlist ships at `examples/watchlist.csv` (one symbol per line). To customize:
 
-Current watchlist (23 stocks):
+- **Plugin users:** copy it to your working directory: `cp ~/.claude/plugins/marketplaces/srivardhanjalan/trading-desk/examples/watchlist.csv ./watchlist.csv` (or just create `watchlist.csv` in the dir where you launch claude). Commands look for `watchlist.csv` in cwd.
+- **Clone-and-run users:** edit `examples/watchlist.csv` directly (or create your own at the repo root).
+
+Default watchlist (23 stocks):
 ```
 ALMU, AMD, AMPX, ASX, BBAI, BE, CDNS, CRDO, FIX, FLTCF, GEV,
 INFQ, KGS, KLTR, LAW, NOK, NOW, NVT, OTLK, PLTR, RBLX, SATS, VXRT
 ```
-
-To update: edit `watchlist.csv` directly — one symbol per line.
 
 ## Daily Automation
 
@@ -201,7 +222,7 @@ The `scripts/` directory contains automation for nightly analysis:
 
 ### `daily-analysis.sh`
 
-Runs a full `/project:analyze` on every stock in `watchlist.csv` using `claude -p` (non-interactive mode).
+Runs a full `/trading-desk:analyze` on every stock in `watchlist.csv` using `claude -p` (non-interactive mode).
 
 - Launches TradingView Desktop with CDP (port 9222) for chart screenshots
 - Starts FMP server via `start.sh`
@@ -247,50 +268,70 @@ On the free tier, spread usage across the day. The paid tier has no daily cap �
 ## Project Structure
 
 ```
-trading-desk/
-├── .claude/commands/               # Claude Code project commands
-│   ├── analyze.md                  # /project:analyze — full 16-phase orchestrator
-│   ├── analyze-technical.md        # /project:analyze-technical
-│   ├── analyze-fundamental.md      # /project:analyze-fundamental
-│   ├── analyze-sentiment.md        # /project:analyze-sentiment
-│   ├── synthesize.md               # /project:synthesize
-│   ├── scan.md                     # /project:scan
-│   ├── portfolio.md                # /project:portfolio
-│   ├── trade.md                    # /project:trade
-│   ├── morning-brief.md            # /project:morning-brief
-│   ├── research.md                 # /project:research
-│   ├── compare.md                  # /project:compare
-│   └── _shared/                    # Reference files read by commands
-│       ├── scoring-rubrics.md      # 8-dimension scoring definitions
-│       ├── asset-classifier.md     # Stock/crypto/ETF/ADR detection
-│       ├── error-handling.md       # FMP tier-aware degradation + retry
-│       ├── output-formats.md       # Templates for all output types
-│       ├── no-skip-policy.md       # Pipeline completeness enforcement
-│       └── analysis-checklist.md   # Pre-output completion audit
-├── scripts/                        # Automation
-│   ├── daily-analysis.sh           # Nightly full-watchlist analysis
-│   └── com.tradingdesk.daily-analysis.plist  # macOS launchd schedule
-├── reports/                        # Analysis output (gitignored)
-│   ├── scores.csv                  # Score history across runs
-│   ├── PLAN.md                     # Full implementation plan (v5)
-│   └── logs/                       # Daily automation logs
-├── mcp-servers/                    # Installed by setup.sh (gitignored)
-├── watchlist.csv                   # Stock watchlist (single source of truth)
-├── rules.json                      # Trading strategy config
-├── setup.sh                        # One-command setup
-├── start.sh                        # Start/stop FMP server
-├── .env.example                    # API key template
-├── .mcp.json.example               # MCP config template
+trading-desk/                                  # repo root = MARKETPLACE
+├── .claude-plugin/
+│   └── marketplace.json                       # marketplace name: "srivardhanjalan"
+│
+├── trading-desk/                              # PLUGIN — name: "trading-desk"
+│   ├── .claude-plugin/plugin.json
+│   ├── .mcp.json                              # 4 MCP servers, ${ENV_VAR} substitution
+│   ├── commands/                              # /trading-desk:* slash commands
+│   │   ├── analyze.md                         # /trading-desk:analyze — orchestrator
+│   │   ├── analyze-technical.md
+│   │   ├── analyze-fundamental.md
+│   │   ├── analyze-sentiment.md
+│   │   ├── synthesize.md
+│   │   ├── scan.md
+│   │   ├── portfolio.md
+│   │   ├── trade.md
+│   │   ├── morning-brief.md
+│   │   ├── research.md
+│   │   └── compare.md
+│   ├── lib/                                   # reference docs (loaded via ${CLAUDE_PLUGIN_ROOT}/lib)
+│   │   ├── scoring-rubrics.md                 # 8-dimension scoring definitions
+│   │   ├── asset-classifier.md                # Stock/crypto/ETF/ADR detection
+│   │   ├── error-handling.md                  # FMP tier-aware degradation + retry
+│   │   ├── output-formats.md                  # Templates for all output types
+│   │   ├── no-skip-policy.md                  # Pipeline completeness enforcement
+│   │   └── analysis-checklist.md              # Pre-output completion audit
+│   └── skills/setup/SKILL.md                  # /trading-desk:setup — first-run bootstrap
+│
+├── scripts/                                   # Automation (used by clone-and-run path)
+│   ├── daily-analysis.sh                      # Nightly full-watchlist analysis
+│   └── com.tradingdesk.daily-analysis.plist   # macOS launchd schedule
+├── examples/                                  # User-overridable templates
+│   ├── watchlist.csv                          # Default watchlist (one symbol per line)
+│   └── rules.json                             # Default trading strategy config
+├── reports/                                   # Analysis output (gitignored, cwd-relative)
+│   ├── scores.csv                             # Score history across runs
+│   └── logs/                                  # Daily automation logs
+├── setup.sh                                   # Legacy (clone-and-run) install
+├── start.sh                                   # Start/stop FMP server (legacy path)
+├── .env.example                               # API key template
 └── .gitignore
 ```
+
+**Two install modes coexist:**
+- **Plugin install** (`/plugin install trading-desk@srivardhanjalan`) — clean, updates via `/plugin update`. The setup skill writes `.env` to `~/workspace/secrets/trading-desk/.env` and the plugin's MCP servers read keys via `${ALPACA_API_KEY}` etc. from your shell env at startup.
+- **Clone-and-run** (`./setup.sh`) — for hacking on commands locally. Uses repo-local `.mcp.json` and `mcp-servers/` clones.
 
 ## Troubleshooting
 
 **Commands don't appear in Claude Code:**
-Make sure you're running Claude Code from the `trading-desk/` directory. Commands show as `/project:analyze`, etc.
+- Plugin install: confirm with `/plugin` that `trading-desk@srivardhanjalan` is enabled. Try `/plugin install trading-desk@srivardhanjalan` again.
+- Clone-and-run: launch claude from inside the cloned `trading-desk/` directory (the new `commands/` lives under `trading-desk/`, not `.claude/`).
+
+**MCP servers report missing keys (`401`/`403`):**
+The plugin reads `${ALPACA_API_KEY}` etc. from shell env at startup (not at tool-call time). Source `.env` in the shell that launches claude:
+```bash
+source ~/workspace/secrets/trading-desk/.env
+claude
+```
+
+**Important:** the `.env` file must use `export KEY=value` syntax (not plain `KEY=value`) — otherwise plain `source` only sets shell vars, not env vars, and subprocess MCP servers won't see them. The setup skill / `setup.sh` writes `.env` correctly. If you have an old `.env` without `export`, regenerate it OR source with `set -a; source .env; set +a`.
 
 **FMP tools return errors:**
-Run `./start.sh --status` to check if the FMP server is running. Run `./start.sh` to start it.
+Run `./start.sh --status` (clone-and-run path) or check `${CLAUDE_PLUGIN_DATA}/fmp.log` (plugin path). Re-run `/trading-desk:setup` if needed.
 
 **"Session not found or expired" on FMP calls:**
 This is a known race condition with toolception's LRU cache. The pipeline handles it automatically by retrying once after 2 seconds and calling affected tools sequentially.
@@ -309,7 +350,7 @@ Check that the launchd plist is loaded: `launchctl list | grep tradingdesk`. Rev
 
 ## Architecture
 
-- **Single-conversation model:** `/project:analyze` runs all 16 phases in one Claude Code conversation
+- **Single-conversation model:** `/trading-desk:analyze` runs all 16 phases in one Claude Code conversation
 - **File-based context management:** Each phase group writes results to `reports/`. The synthesize phase reads these files, surviving context compression
 - **Session caching:** VIX, treasury rates, and market risk premium are cached across multiple analyses in a session
 - **Two-track valuation:** Value stocks use DCF with scenario analysis; growth stocks use PEG ratio (auto-detected)
