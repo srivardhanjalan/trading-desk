@@ -3,7 +3,7 @@
 # Runs at 12:15 AM PDT — full /trading-desk:analyze on every stock in the watchlist
 #
 # FMP rate limit: 300 calls/minute (paid plan, no daily cap)
-# Each stock takes ~55-73 tool calls across all MCPs, well under 300/min
+# Each stock takes ~58-76 tool calls across all MCPs, well under 300/min
 #
 # Prerequisites (script fails loudly if any are missing):
 #   1. claude CLI installed and authenticated

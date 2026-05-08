@@ -158,6 +158,26 @@ Check `getEarningsCalendar` data from Phase 11 or fundamental report:
 - Otherwise: use normal weights.
 - **Log which weight table is used:** "WEIGHTS: {NORMAL/PRE-EARNINGS}. Reason: {earnings date or 'no upcoming earnings'}."
 
+### Step 0b — Competitive Moat & Strategic Position (qualitative, no new MCP calls)
+
+Before scoring, write a brief moat assessment from data already collected. This is qualitative reasoning over the phase reports — no new tool calls. **MANDATORY for all stocks (Skip only for crypto/ETF).**
+
+Synthesize from existing data:
+- **Moat type** (one of: Network effects · Switching costs · Cost advantage · Intangibles/brand/IP · Efficient scale · None obvious). Justify in one sentence using fundamentals (gross margins, ROIC, revenue concentration, recurring revenue % from analyze-fundamental).
+- **Moat trajectory**: widening / stable / narrowing. Use 3-5 year margin trend (GP margin, EBITDA margin) + market-share commentary from press releases / news (Phase 11).
+- **Key risks to moat**: technology disruption, regulatory exposure, competitive entry, customer concentration, supply-chain single-source. Pull from press releases, 8-K filings, news NLP, and any flagged geographic/tariff exposures from analyze-fundamental.
+- **Supply-chain & geographic risk** (if not already surfaced): single-source dependencies, country concentration, geopolitical exposure. From getCompanyProfile + recent press releases / news.
+
+Output the assessment as a 4-line block in the synthesis report under "## Competitive Moat":
+```
+Type:        {moat type}, justified by {1-line evidence}
+Trajectory:  {widening/stable/narrowing}, based on {margin/share evidence}
+Risks:       {top 2-3 risks with one-word severity tags}
+Supply chain: {dependencies and any concentration risks, or "Diversified"}
+```
+
+This block also feeds the Fundamental score's Economic Moat modifier (Step 1).
+
 ### Step 1 — Score all 8 dimensions
 
 Apply `${CLAUDE_PLUGIN_ROOT}/lib/scoring-rubrics.md` thresholds to data from all phase reports. For each dimension, assign a score 1-10 with brief justification.

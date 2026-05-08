@@ -121,6 +121,8 @@ After computing all 10 metrics, cross-reference against Phase 11 earnings calend
 - `mcp__plugin_trading-desk_financial-modeling-prep__getStockSplitCalendar` with from={today}, to={today + 60 days} — upcoming stock splits. POST-FILTER for symbol. Forward splits increase retail interest; reverse splits are often bearish.
 - `mcp__plugin_trading-desk_financial-modeling-prep__searchEquityOfferings` with symbol=$ARGUMENTS — recent equity/debt offerings. Secondary offerings (dilution) are material negative signals. Convertible notes add future dilution risk. Feeds into Risk scoring.
 - `mcp__plugin_trading-desk_financial-modeling-prep__getLatest8KFilings` — most recent material event filings across all companies. POST-FILTER for symbol. Clusters of 8-Ks near earnings signal material events in progress.
+- `mcp__plugin_trading-desk_financial-modeling-prep__searchMergersAcquisitions` with name={COMPANY_NAME from Phase 1 profile} — checks both directions: company as **acquirer** (growth-by-acquisition risk, integration overhang) and company as **target** (potential premium catalyst). Empty result = "No M&A activity in filings."
+- `WebSearch` query: "$ARGUMENTS acquisition merger takeover {current_year}" — breaking M&A rumors, activist filings, takeover speculation not yet in SEC filings. Captures pre-announcement leaks and analyst speculation. Feeds into Smart Money + Sentiment scoring; flag any credible takeover talk as a near-term catalyst.
 
 **Crypto route:** `market_sentiment` + `multi_agent_analysis` + `mcp__plugin_trading-desk_financial-modeling-prep__searchCryptoNews` + `WebSearch` Twitter. Skip insider/congressional/corporate actions.
 
@@ -146,8 +148,9 @@ If fewer than 4 of 6 items are completed, add 'NEWS NLP: INCOMPLETE' warning to 
 
 ## Phase 12: Institutional Ownership
 
-**4 calls, parallel:**
-- Call `mcp__plugin_trading-desk_financial-modeling-prep__getPositionsSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter}
+**5 calls, parallel:**
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getPositionsSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — aggregate snapshot: total holders, total share count, total value.
+- Call `mcp__plugin_trading-desk_financial-modeling-prep__getFilingExtractAnalyticsByHolder` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **fund-by-fund detail**: top buyers (with share-count + portfolio-weight changes), top sellers, NEW positions initiated this quarter, EXITS (funds closing positions). Reveals whether a specific high-alpha fund just initiated vs. trimmed. **Always extract:** top 3 new positions, top 3 exits, largest weight change. Much higher signal-to-noise than the aggregate.
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getHolderPerformanceSummary` with symbol=$ARGUMENTS, year={current year}, quarter={adjusted quarter} — **Are the institutional holders good investors?** If high-alpha funds (those outperforming S&P 500) are accumulating, this is a stronger signal than generic institutional buying. Cathie Wood selling while Renaissance buying = trust Renaissance.
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getForm13FFilingDates` with symbol=$ARGUMENTS — exact filing dates for the symbol's institutional holders. Detects STALE vs FRESH 13F data and identifies which funds filed most recently.
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getHolderIndustryBreakdown` with symbol=$ARGUMENTS — which industries/sectors the institutional holders come from. If holders are concentrated in one industry (e.g., all tech funds), a sector rotation would trigger correlated selling.

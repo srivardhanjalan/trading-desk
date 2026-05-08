@@ -9,7 +9,7 @@ Run the complete 16-phase analysis pipeline on the given symbol. This is the orc
 
 **This command runs Phases 0-16b sequentially.** After each phase group, results are saved to `reports/` so that raw tool responses can be compressed without losing critical data.
 
-**Expected: ~55-73 tool calls across 4 MCP servers + WebSearch/WebFetch. Budget: 33-34 FMP calls.**
+**Expected: ~58-76 tool calls across 4 MCP servers + WebSearch/WebFetch. Budget: 35-36 FMP calls. Includes M&A check, fund-level institutional flow, and competitive moat assessment.**
 
 **MANDATORY:** Read and follow `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md`. Every step must be ATTEMPTED — silent skipping is a pipeline violation.
 
@@ -129,6 +129,5 @@ Pipeline: {PASS/VIOLATION} | Phases: {N}/4 complete | Overrides: {N}/8 evaluated
 ## Post-Analysis
 
 After the compact card is displayed:
-- Offer: "Run `/trading-desk:research $ARGUMENTS` for deep web research (Twitter/StockTwits/full article NLP)"
 - Offer: "Run `/trading-desk:trade buy $ARGUMENTS {amount}` to paper trade"
 - If Desktop running: note chart annotations (stop/target lines and price alerts are set)

@@ -68,7 +68,7 @@ Free tiers are enough for daily use. Alpaca paper trading gives you $100k–$200
 |---|---|---|
 | `/trading-desk:morning-brief` | VIX, sector rotation, watchlist deltas, top movers | 32 |
 | `/trading-desk:portfolio` | Alpaca dashboard with risk flags + earnings warnings | 12+ |
-| `/trading-desk:analyze SYMBOL` | **Full 16-phase deep dive + recommendation** | 55–73 |
+| `/trading-desk:analyze SYMBOL` | **Full 16-phase deep dive + recommendation (incl. M&A check, fund-level institutional flow, moat assessment)** | 58–76 |
 | `/trading-desk:analyze-technical SYMBOL` | Technical phase only (price, indicators, volume, chart) | 9–21 |
 | `/trading-desk:analyze-fundamental SYMBOL` | Fundamentals (macro, financials, DCF) | 23 |
 | `/trading-desk:analyze-sentiment SYMBOL` | Options, insiders, social sentiment, backtests | 24–30 |
@@ -76,7 +76,6 @@ Free tiers are enough for daily use. Alpaca paper trading gives you $100k–$200
 | `/trading-desk:scan watchlist` | Score every stock in `watchlist.csv` | ~131 |
 | `/trading-desk:scan discover` | FMP screener → score top 10 candidates | ~64 |
 | `/trading-desk:scan AAPL,MSFT,NVDA` | Score specific symbols | varies |
-| `/trading-desk:research SYMBOL` | Deep web research (Reddit, Twitter, full-article NLP, M&A rumors) | 15 |
 | `/trading-desk:compare AMD NVDA` | Side-by-side scoring across all 8 dimensions | 18 |
 | `/trading-desk:trade buy AMD 1000` | Paper trade with pre-trade safety checks | 6 |
 | `/trading-desk:setup` | First-run bootstrap (rerun anytime to reset config) | 0 (interactive) |
@@ -102,12 +101,12 @@ Free tiers are enough for daily use. Alpaca paper trading gives you $100k–$200
 | 8 | Peer comparison | FMP peers + batch quotes |
 | 9 | Valuation: 3 DCFs + PEG + analyst targets | FMP DCF / levered DCF / custom DCF |
 | 10 | Options flow: 10 derived metrics | Alpaca options chain + bars |
-| 11 | Sentiment: Reddit/Twitter/StockTwits + news NLP | TV-Analysis + WebSearch |
-| 12 | Institutional ownership (13F) | FMP positions summary |
+| 11 | Sentiment + news NLP + M&A check | TV-Analysis + FMP search + WebSearch + WebFetch |
+| 12 | Institutional ownership (13F) — aggregate + fund-level flow | FMP positions + filing extract by holder |
 | 13 | Earnings transcript NLP *(when available)* | FMP transcripts |
 | 14 | Strategy backtest + cross-validation | TV-Analysis + TV Desktop |
 | 15 | Risk quantification + position sizing | Alpaca account |
-| 16 | Synthesis: 8-dimension composite + recommendation | Scoring rubrics |
+| 16 | Synthesis: competitive moat + 8-dimension composite + recommendation | Scoring rubrics + qualitative reasoning |
 
 ### Scoring → action
 
@@ -297,11 +296,11 @@ Open the TradingView Desktop app first, with CDP enabled (the daily script handl
 
 ### Rate limit errors
 
-FMP free tier is ~250 calls/day. A full `/analyze` uses 33–34 calls. Either upgrade FMP, spread requests across the day, or stick to `/portfolio`/`/morning-brief` (lighter touch). Reference budget:
+FMP free tier is ~250 calls/day. A full `/analyze` uses ~35 calls. Either upgrade FMP, spread requests across the day, or stick to `/portfolio`/`/morning-brief` (lighter touch). Reference budget:
 
 | Action | FMP calls |
 |---|---:|
-| 1 full `/trading-desk:analyze` | 33–34 |
+| 1 full `/trading-desk:analyze` | 35–36 |
 | 2nd stock (cached session) | 29–30 |
 | `/scan watchlist` (23 stocks) | ~164 |
 | `/morning-brief` | 25 |
