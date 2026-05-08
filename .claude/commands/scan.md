@@ -15,9 +15,10 @@ Scan multiple stocks with condensed analysis and rank by composite score.
 
 ## Setup
 
-1. Read `_shared/error-handling.md` for FMP tier-aware degradation
-2. Read `_shared/scoring-rubrics.md` for quick scoring
-3. Parse $ARGUMENTS to determine mode:
+1. Read `_shared/no-skip-policy.md` for mandatory execution rules
+2. Read `_shared/error-handling.md` for FMP tier-aware degradation
+3. Read `_shared/scoring-rubrics.md` for quick scoring
+4. Parse $ARGUMENTS to determine mode:
    - "watchlist" or empty → use default watchlist
    - Comma-separated symbols → use those
    - "discover" → discovery mode
@@ -57,7 +58,7 @@ Take top 10 results by volume/momentum. Proceed to scan these 10 stocks.
 - `mcp__financial-modeling-prep__getFinancialScores` — Piotroski + Z-Score
 - `mcp__financial-modeling-prep__getDCFValuation` — intrinsic value estimate
 - `mcp__financial-modeling-prep__getPriceTargetSummary` — analyst consensus + count
-- `mcp__financial-modeling-prep__getFinancialStatementFullAsReported` with symbol={SYMBOL}, period="annual", limit=1 — quick RPO and customer concentration check from SEC filing XBRL data
+- **[CALL AFTER other FMP calls complete — do NOT batch in parallel]** `mcp__financial-modeling-prep__getFinancialStatementFullAsReported` with symbol={SYMBOL}, period="annual", limit=1 — quick RPO and customer concentration check from SEC filing XBRL data. **Known issue:** toolception session race condition causes failures when batched with many parallel FMP calls.
 - `mcp__tradingview-analysis__coin_analysis` (symbol, exchange, "1D") — RSI, MACD, support/resistance
 - `mcp__tradingview-analysis__compare_strategies` (symbol, period="1y") — best strategy + return
 

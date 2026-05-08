@@ -6,13 +6,16 @@ Run the complete 16-phase analysis pipeline on the given symbol. This is the orc
 
 **Expected: ~55-73 tool calls across 4 MCP servers + WebSearch/WebFetch. Budget: 33-34 FMP calls.**
 
+**MANDATORY:** Read and follow `_shared/no-skip-policy.md`. Every step must be ATTEMPTED — silent skipping is a pipeline violation.
+
 ---
 
 ## Setup
 
-1. Read the strategy config from `rules.json` in the project root (if it exists) for risk parameters
-2. Create `reports/` directory if it doesn't exist
-3. Note the current date for all report filenames
+1. Read `_shared/no-skip-policy.md` (no-skip enforcement rules)
+2. Read the strategy config from `rules.json` in the project root (if it exists) for risk parameters
+3. Create `reports/` directory if it doesn't exist
+4. Note the current date for all report filenames
 
 ---
 
@@ -96,6 +99,25 @@ These calls can be cached and reused across multiple /analyze runs in the same s
 | `getStockPriceChange` (sector ETF) | "sector_{ETF}" | Per sector, entire session |
 
 On 2nd+ stock: ~29-30 FMP calls (save ~4).
+
+---
+
+## Completion Audit (MANDATORY — run before displaying compact card)
+
+Before displaying the compact card, perform the completion audit defined in `_shared/no-skip-policy.md`:
+
+1. **Phase Group 1 (Technical):** Verify `reports/{SYMBOL}_technical.md` exists and contains: RSI, ADX, MACD, support/resistance, regime classification
+2. **Phase Group 2 (Fundamental):** Verify `reports/{SYMBOL}_fundamental.md` exists (or N/A for crypto) and contains: Piotroski, Z-Score, DCF values (all 3+), XBRL data attempt, Beneish M-Score
+3. **Phase Group 3 (Sentiment):** Verify `reports/{SYMBOL}_sentiment.md` exists and contains: options flow, insider trades with 10b5-1 status, news NLP, backtest results
+4. **Phase Group 4 (Synthesis):** Verify all 8 dimensions scored, all 8 overrides evaluated, Scenario DCF attempted (Track A) or logged as skipped (Track B)
+5. **Compact Card:** Verify all 16 sections present per `_shared/output-formats.md`
+
+**If any mandatory step was silently skipped (no COMPLETED/FAILED/N/A log), go back and execute it before proceeding.**
+
+Display the audit summary in the report footer:
+```
+Pipeline: {PASS/VIOLATION} | Phases: {N}/4 complete | Overrides: {N}/8 evaluated | Data: {X}%
+```
 
 ---
 

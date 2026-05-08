@@ -2,6 +2,8 @@
 
 Apply to EVERY MCP tool call across all phases.
 
+**See also:** `_shared/no-skip-policy.md` — errors must be LOGGED, never silently skipped. Every step must end as COMPLETED, FAILED (with reason), or N/A (with asset-type justification).
+
 ---
 
 ## Per-Call Error Handling
@@ -88,6 +90,20 @@ If multiple consecutive FMP calls return 429 (rate limit):
 2. Score only dimensions with data collected so far
 3. Normalize composite: weighted_sum / sum_of_available_weights x 100
 4. Force HOLD if <60% data completeness
+
+---
+
+## FMP Session Error Recovery
+
+If any FMP call returns `"Session not found or expired"`:
+1. **Do NOT silently skip the call** — this is a recoverable error
+2. Wait 2 seconds, then retry the same call once
+3. If retry succeeds: proceed normally
+4. If retry fails: log as `[FAILED] {tool}: Session error after retry`
+5. **Known race-condition tools** (must be called sequentially, NOT in parallel batches):
+   - `getFinancialStatementFullAsReported` — XBRL SEC filing data
+   - `calculateCustomDCF` — when running multiple scenarios back-to-back
+6. If session errors persist across 3+ consecutive calls: the FMP MCP server may need restarting. Note: "FMP SESSION: Multiple failures. Server may need restart."
 
 ---
 

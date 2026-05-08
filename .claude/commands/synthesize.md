@@ -52,8 +52,14 @@ Using 1-year daily returns from `getFullChart`:
 - If <200 trading days available: fall back to parametric VaR = price × HV × 1.645 (95% confidence). Note: "VaR: PARAMETRIC (insufficient history for historical)."
 - Report: "VaR(95%): ${daily} daily / ${weekly} weekly. CVaR: ${cvar}. Method: {historical/parametric}."
 
-**Bull/Base/Bear Scenario DCF — Track A stocks only:**
-Skip for Track B (growth stocks with P/E >40 OR growth >20%). Track B stocks use PEG as primary metric; single-stage models are inappropriate for high-growth companies. Note: "SCENARIO DCF: N/A for Track B."
+**Bull/Base/Bear Scenario DCF — MANDATORY for Track A, logged skip for Track B:**
+
+**Per `_shared/no-skip-policy.md`, this step MUST be attempted or explicitly logged. Silent skipping is a violation.**
+
+- **Track A (Value):** revenue growth <=20% AND P/E <=40 → **MUST RUN all 3 scenarios.** Call `calculateCustomDCF` 3 times (bull, base, bear) sequentially to avoid session race conditions. If any call fails, retry once after 2 seconds. Log each outcome.
+- **Track B (Growth):** revenue growth >20% OR P/E >40 → Skip is valid, but MUST log: `"SCENARIO DCF: SKIPPED — Track B stock (rev growth {X}%, P/E {Y}x). PEG ratio used as primary valuation metric."`
+- **Track Unknown:** If data is insufficient to classify → **default to running Scenario DCF.** Log: `"SCENARIO DCF: RUN (track classification uncertain)."`
+- **All 3 Fail:** Log: `"SCENARIO DCF: FAILED — {error}. Falling back to Phase 9 DCF range."` Use standard/levered DCF from Phase 9 as substitute.
 
 WACC = riskFreeRate (10Y from Phase 2 getTreasuryRates) + beta (from Phase 1) × marketRiskPremium (from getMarketRiskPremium)
 

@@ -2,7 +2,9 @@
 
 Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for fundamental-only analysis.
 
-**Before starting:** Read `.claude/commands/_shared/asset-classifier.md` and `.claude/commands/_shared/error-handling.md`. If running standalone (not from orchestrator), first call `mcp__financial-modeling-prep__getCompanyProfile` to classify the asset type.
+**Before starting:** Read `.claude/commands/_shared/asset-classifier.md`, `.claude/commands/_shared/error-handling.md`, and `.claude/commands/_shared/no-skip-policy.md`. If running standalone (not from orchestrator), first call `mcp__financial-modeling-prep__getCompanyProfile` to classify the asset type.
+
+**MANDATORY:** Every step below MUST be attempted. If a tool fails, log it as FAILED with the error — never silently skip.
 
 **Crypto route:** Skip this entire command — crypto has no traditional fundamentals.
 **ETF route:** Phase 7 uses fund-specific tools instead.
@@ -64,7 +66,7 @@ Run Phases 2, 7, 8, 9 for the given symbol. This is a standalone entry point for
 - `mcp__financial-modeling-prep__getCompanyNotes` with symbol=$ARGUMENTS — footnotes and disclosure items. Catches off-balance-sheet obligations, contingent liabilities, related-party transactions that P&L data misses.
 - `mcp__financial-modeling-prep__getEmployeeCount` with symbol=$ARGUMENTS — current headcount snapshot. Cross-reference with `getHistoricalEmployeeCount` for latest hiring/layoff trajectory.
 - `mcp__financial-modeling-prep__getExecutiveCompensationBenchmark` with symbol=$ARGUMENTS — exec comp relative to peers. Flags excessive compensation (agency risk) or unusually low comp (founder-led alignment).
-- `mcp__financial-modeling-prep__getFinancialStatementFullAsReported` with symbol=$ARGUMENTS, period="annual", limit=2 — XBRL data from SEC filings. Extract: `revenueremainingperformanceobligation` (RPO — forward revenue visibility), `revenueremainingperformanceobligationpercentage` (RPO recognition timeline), `concentrationriskpercentage1` (customer concentration by CUSTOMER, not product segment), `unrecordedunconditionalpurchaseobligationbalancesheetamount` (purchase obligations), `contractwithcustomerliabilitycurrent` (current deferred revenue), `numberofoperatingsegments` (segment count). **XBRL fallback:** Field names are US GAAP taxonomy tags. Not all companies report all fields. If any field is not found in the response, set that metric to "N/A — not reported in SEC filing." The Revenue Durability section must gracefully degrade — never penalize for missing XBRL data.
+- **[CALL SEQUENTIALLY — do NOT batch with other FMP calls]** `mcp__financial-modeling-prep__getFinancialStatementFullAsReported` with symbol=$ARGUMENTS, period="annual", limit=2 — XBRL data from SEC filings. **Known issue:** toolception session race condition causes "Session not found" errors when this call runs in parallel with many other FMP calls. Fire this AFTER the main parallel batch completes. Extract: `revenueremainingperformanceobligation` (RPO — forward revenue visibility), `revenueremainingperformanceobligationpercentage` (RPO recognition timeline), `concentrationriskpercentage1` (customer concentration by CUSTOMER, not product segment), `unrecordedunconditionalpurchaseobligationbalancesheetamount` (purchase obligations), `contractwithcustomerliabilitycurrent` (current deferred revenue), `numberofoperatingsegments` (segment count). **XBRL fallback:** Field names are US GAAP taxonomy tags. Not all companies report all fields. If any field is not found in the response, set that metric to "N/A — not reported in SEC filing." The Revenue Durability section must gracefully degrade — never penalize for missing XBRL data.
 - `WebSearch` query: "{COMPANY_NAME} careers open positions {current_year}" OR "{COMPANY_NAME} LinkedIn jobs" — hiring momentum (leading indicator for revenue, 1-2 quarters ahead). Extract: approximate total open positions, whether hiring is "aggressive" (>5% of headcount) or "moderate". Cross-reference with `getHistoricalEmployeeCount` trend. Headcount growing + aggressive hiring = expansion mode (bullish). Headcount flat + few openings = efficiency mode (bullish for margins). Headcount declining + few openings = contraction (bearish). Report: "Hiring Momentum: ~{X} open positions ({aggressive/moderate/minimal})."
 
 **ETF route:** Replace Phase 7 with:
@@ -121,7 +123,9 @@ From the 5-year income statement and balance sheet data, compute:
 
 ## Phase 9: Valuation & Analyst Targets
 
-### Step 1 — Valuation models (6 calls, parallel)
+### Step 1 — Valuation models (6 calls, parallel — ALL MUST BE ATTEMPTED per no-skip-policy)
+
+**Every DCF call below is mandatory. If any fails, log: `[FAILED] {tool}: {error}. Valuation score degraded.`**
 
 - `mcp__financial-modeling-prep__getDCFValuation` with symbol=$ARGUMENTS — standard (unlevered) DCF intrinsic value
 - `mcp__financial-modeling-prep__getLeveredDCFValuation` with symbol=$ARGUMENTS — levered DCF (accounts for debt). For leveraged companies, can differ 20-40% from unlevered. Together they create a valuation range.

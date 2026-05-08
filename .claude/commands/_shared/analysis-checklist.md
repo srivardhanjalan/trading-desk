@@ -2,9 +2,12 @@
 
 Complete 16-phase stock analysis pipeline. ~100-143 tool calls across 4 MCP servers + WebSearch/WebFetch.
 
+**MANDATORY:** Follow `_shared/no-skip-policy.md`. Every step must be ATTEMPTED, FAILED (with reason), or marked N/A (with asset-type justification). Silent skipping is a pipeline violation.
+
 ---
 
 ## Setup
+- [ ] Read `_shared/no-skip-policy.md` (no-skip enforcement rules)
 - [ ] Read `rules.json` (if exists) for custom risk parameters
 - [ ] Ensure `reports/` directory exists
 - [ ] Note current date for filenames
@@ -509,3 +512,42 @@ These are values that MUST be confirmed from actual data before being used in sc
 | <5 of 8 dimensions scored | Force HOLD |
 | FMP rate limit (429) | Note, score available dimensions only |
 | Desktop unavailable | Skip chart calls, all data from TV-Analysis |
+
+---
+
+## COMPLETION AUDIT (MANDATORY — before displaying compact card)
+
+After all phases complete, verify these critical items were not silently skipped:
+
+### Critical Step Verification
+- [ ] **Scenario DCF:** Track A → all 3 scenarios attempted. Track B → logged as skipped with reason. Neither → VIOLATION.
+- [ ] **XBRL Data (getFinancialStatementFullAsReported):** Attempted (called sequentially). If failed → logged with error.
+- [ ] **Custom DCF (base + bear):** Both attempted in Phase 9. If failed → logged with error.
+- [ ] **Beneish M-Score:** Computed from 5-year data. If insufficient data → logged.
+- [ ] **All 8 Overrides:** Each has a log line (APPLIED or NOT TRIGGERED). Count = 8.
+- [ ] **10b5-1 Verification:** Each insider with sales >$1M has WebSearch verification.
+- [ ] **News NLP:** Minimum 2 articles WebFetched with sentiment analysis.
+- [ ] **Compact Card:** All 16 sections present (verify against Section checklist above).
+
+### Audit Summary (include in report footer)
+```
+=== COMPLETION AUDIT ===
+Phase Group 1 (Technical):   [{status}] — {N}/{M} calls
+Phase Group 2 (Fundamental): [{status}] — {N}/{M} calls
+Phase Group 3 (Sentiment):   [{status}] — {N}/{M} calls  
+Phase Group 4 (Synthesis):   [{status}] — {N}/{M} calls
+
+Scenario DCF:    [{COMPLETED/SKIPPED-TRACK-B/FAILED}]
+XBRL Data:       [{COMPLETED/FAILED}]
+Custom DCFs:     [{COMPLETED/FAILED}]
+Beneish M-Score: [{COMPLETED/INSUFFICIENT-DATA}]
+Overrides:       [{N}/8 evaluated]
+10b5-1 Checks:   [{N}/{M} insiders verified]
+News NLP:        [{N} articles analyzed]
+Compact Card:    [{N}/16 sections]
+
+Pipeline: {PASS/VIOLATION — {missing steps}}
+Data Completeness: {X}%
+```
+
+**If Pipeline = VIOLATION:** Go back and execute the missing steps before displaying the card. If truly impossible (e.g., MCP server down), log the failure and proceed with degraded completeness.
