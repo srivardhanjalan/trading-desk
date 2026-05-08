@@ -1,8 +1,7 @@
 {
   "mcpServers": {
     "tradingview": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_DATA}/mcp-servers/tradingview-mcp/src/server.js"]
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/launch-tradingview.sh"
     },
     "tradingview-analysis": {
       "command": "uvx",

@@ -22,11 +22,11 @@ In **any** Claude Code session, in **any** directory:
 
 The `/trading-desk:setup` skill walks you through:
 
-1. Asks (in chat) for your **FMP** key and **Alpaca** key + secret
+1. Asks (in chat) for your **FMP** key, **Alpaca** key + secret, and **whether to install TradingView Desktop integration** (macOS only, opt-in — the skill handles the brew install + clone + auto-launch wiring for you)
 2. Writes them to `~/workspace/secrets/trading-desk/.env` (kept outside the plugin install dir, survives plugin updates)
 3. Detects and backs up any conflicting MCP configs in `~/.claude/.mcp.json` or your cwd's `.mcp.json` so the plugin's tools register cleanly
-4. Clones the optional TradingView Desktop MCP into `${CLAUDE_PLUGIN_DATA}`
-5. Installs the FMP MCP server and starts it on `:8080`
+4. Installs the FMP MCP server and starts it on `:8080`
+5. If you opted in: `brew install --cask tradingview`, clones the MCP server, launches the app with CDP, and enables a SessionStart hook that auto-launches it on every future claude session
 6. Verifies both keys against the live Alpaca/FMP endpoints
 
 When it's done, restart claude once:
@@ -37,6 +37,8 @@ claude
 ```
 
 That's the only restart needed — and **you do not need to source any env file in your shell**. The plugin ships a wrapper script (`bin/launch-alpaca.sh`) that loads your `.env` whenever Claude spawns the Alpaca MCP server.
+
+If you opted in for TradingView Desktop, the SessionStart hook (`bin/ensure-tv-desktop.sh`) auto-launches the app with `--remote-debugging-port=9222` on every session — no manual launch step. The hook is gated by `TD_TV_ENABLED` in `.env`, so opting out (or changing your mind later) is a one-line edit.
 
 ### Get the API keys (both free)
 
@@ -55,7 +57,8 @@ Free tiers are enough for daily use. Alpaca paper trading gives you $100k–$200
 | Python | 3.10+ | [python.org](https://python.org) |
 | Claude Code | latest | `npm install -g @anthropic-ai/claude-code` |
 | `uvx` | any | Auto-installed by the setup skill if missing |
-| TradingView Desktop | optional | macOS only; required for chart screenshots + order book data. Analysis works fine without it. |
+| Homebrew | optional | macOS only — needed only if you want the setup skill to auto-install TradingView Desktop. Get it at [brew.sh](https://brew.sh). |
+| TradingView Desktop | optional | macOS only — adds chart screenshots + order book data + Pine Script. The setup skill auto-installs via Homebrew if you opt in. Analysis works fine without it. |
 
 ---
 
@@ -212,14 +215,16 @@ rm ~/Library/LaunchAgents/com.tradingdesk.daily-analysis.plist
 
 | Server | Type | Lifecycle | What it does |
 |---|---|---|---|
-| [TradingView Desktop](https://github.com/tradesdontlie/tradingview-mcp) | stdio (Node) | spawned by Claude per session | Chart control, Pine Script, screenshots, order book |
+| [TradingView Desktop](https://github.com/tradesdontlie/tradingview-mcp) | stdio (Node, via wrapper) | spawned by Claude per session | Chart control, Pine Script, screenshots, order book. App auto-launched by SessionStart hook if `TD_TV_ENABLED=true`. |
 | [TradingView Analysis](https://pypi.org/project/tradingview-mcp-server/) | stdio (uvx) | spawned by Claude per session | Screener, multi-TF analysis, candle patterns, backtests |
 | [Financial Modeling Prep](https://github.com/imbenrabi/Financial-Modeling-Prep-MCP-Server) | HTTP `:8080` | long-running (started by setup skill) | Fundamentals, DCF, earnings, insiders, macro |
 | [Alpaca](https://pypi.org/project/alpaca-mcp-server/) | stdio (uvx via wrapper) | spawned by Claude per session | Paper trading, options, portfolio, market data |
 
 **Alpaca wrapper:** the plugin's `.mcp.json` invokes `${CLAUDE_PLUGIN_ROOT}/bin/launch-alpaca.sh` instead of `uvx alpaca-mcp-server` directly. The wrapper sources `~/workspace/secrets/trading-desk/.env` at MCP-spawn time, so your keys are loaded without you needing to `source .env` in your shell.
 
-**TradingView Desktop is optional.** If you have the desktop app open with CDP enabled, you get chart screenshots, order book data, and strategy cross-validation. Otherwise those phases are skipped gracefully.
+**TradingView wrapper:** `${CLAUDE_PLUGIN_ROOT}/bin/launch-tradingview.sh` execs the real TV MCP if you installed it (via the setup skill's opt-in step), otherwise responds to MCP protocol with an empty tool list — so users who skipped TV Desktop never see startup errors. The TV Desktop phase in `/trading-desk:analyze` gracefully marks itself N/A when no tools are available.
+
+**TradingView SessionStart hook:** `${CLAUDE_PLUGIN_ROOT}/bin/ensure-tv-desktop.sh` runs on every claude session start. If `TD_TV_ENABLED=true` in your `.env` and macOS, it auto-launches the TV Desktop app with `--remote-debugging-port=9222` — no manual `open -a TradingView` step. Gated, async, silent no-op if disabled.
 
 ### Known issue: FMP session race
 
@@ -333,9 +338,12 @@ trading-desk/                                  # repo = MARKETPLACE
 │
 ├── trading-desk/                              # PLUGIN — name: trading-desk
 │   ├── .claude-plugin/plugin.json
-│   ├── .mcp.json                              # 4 MCPs, ${ENV_VAR} + ${CLAUDE_PLUGIN_DATA} substitution
+│   ├── .mcp.json                              # 4 MCPs, ${ENV_VAR} + ${CLAUDE_PLUGIN_ROOT} substitution
 │   ├── bin/
-│   │   └── launch-alpaca.sh                   # wrapper: sources .env then exec uvx alpaca-mcp-server
+│   │   ├── launch-alpaca.sh                   # sources .env, execs uvx alpaca-mcp-server
+│   │   ├── launch-tradingview.sh              # execs TV MCP if installed, else no-op MCP server
+│   │   └── ensure-tv-desktop.sh               # SessionStart hook: auto-launch TV app if TD_TV_ENABLED=true
+│   ├── hooks/hooks.json                       # SessionStart hook wiring (ensure-tv-desktop.sh)
 │   ├── commands/                              # 11 /trading-desk:* slash commands
 │   ├── lib/                                   # reference docs (loaded via ${CLAUDE_PLUGIN_ROOT}/lib)
 │   │   ├── scoring-rubrics.md
@@ -344,7 +352,7 @@ trading-desk/                                  # repo = MARKETPLACE
 │   │   ├── output-formats.md
 │   │   ├── no-skip-policy.md
 │   │   └── analysis-checklist.md
-│   └── skills/setup/SKILL.md                  # /trading-desk:setup — first-run bootstrap
+│   └── skills/setup/SKILL.md                  # /trading-desk:setup — first-run bootstrap (incl. brew install of TV)
 │
 ├── scripts/                                   # daily automation (uses globally-installed plugin)
 │   ├── daily-analysis.sh
