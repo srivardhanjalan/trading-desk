@@ -5,9 +5,13 @@
 # FMP rate limit: 300 calls/minute (paid plan, no daily cap)
 # Each stock takes ~55-73 tool calls across all MCPs, well under 300/min
 #
-# Prerequisites:
+# Prerequisites (script fails loudly if any are missing):
 #   1. claude CLI installed and authenticated
-#   2. trading-desk repo at $TRADING_DESK (contains the plugin source under trading-desk/)
+#   2. trading-desk plugin INSTALLED globally:
+#         /plugin marketplace add srivardhanjalan/trading-desk
+#         /plugin install trading-desk@srivardhanjalan
+#      (NOT --plugin-dir mode — that path causes HTTP-MCP prefix translation
+#       which adds fragility. Global install gives bulletproof name resolution.)
 #   3. .env at ~/workspace/secrets/trading-desk/.env (FMP_ACCESS_TOKEN, ALPACA_*)
 #   4. FMP server running on :8080 (start via /trading-desk:setup once, OR ./start.sh)
 #   5. TradingView Desktop (optional — auto-launched here for chart screenshots + order book)
@@ -16,10 +20,37 @@ set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 TRADING_DESK="/Users/srivardhanjalan/workspace/trading-desk"
-PLUGIN_DIR="$TRADING_DESK/trading-desk"
 ENV_FILE="$HOME/workspace/secrets/trading-desk/.env"
+SETTINGS_FILE="$HOME/.claude/settings.json"
 LOG_DIR="$TRADING_DESK/reports/logs"
 WATCHLIST_FILE="$TRADING_DESK/examples/watchlist.csv"
+
+# ─── Precondition: plugin globally installed ────────────────────────────────
+# The trading-desk plugin must be installed (not just --plugin-dir loaded), so
+# all MCP tool names get the proper mcp__plugin_trading-desk_* prefix that our
+# command files reference. Without global install, FMP HTTP MCPs surface
+# unprefixed and Claude has to translate — works most of the time but adds a
+# soft dependency we don't want in unattended automation.
+if [ ! -f "$SETTINGS_FILE" ]; then
+    echo "FATAL: $SETTINGS_FILE not found. Is Claude Code installed?" >&2
+    exit 1
+fi
+if ! python3 -c "
+import json, sys
+data = json.load(open('$SETTINGS_FILE'))
+plugins = data.get('enabledPlugins', {})
+sys.exit(0 if plugins.get('trading-desk@srivardhanjalan') is True else 1)
+" 2>/dev/null; then
+    echo "FATAL: trading-desk plugin not installed/enabled." >&2
+    echo "" >&2
+    echo "Install it once in an interactive claude session:" >&2
+    echo "  /plugin marketplace add srivardhanjalan/trading-desk" >&2
+    echo "  /plugin install trading-desk@srivardhanjalan" >&2
+    echo "  /trading-desk:setup" >&2
+    echo "" >&2
+    echo "Then re-run this script." >&2
+    exit 1
+fi
 
 # Source .env so the plugin's MCP servers get FMP/Alpaca keys at startup
 if [ -f "$ENV_FILE" ]; then
@@ -47,7 +78,7 @@ log() {
 }
 
 log "═══ Daily Analysis Started ═══"
-log "Date: $DATE | Stocks: ${#WATCHLIST[@]} | Plugin: $PLUGIN_DIR"
+log "Date: $DATE | Stocks: ${#WATCHLIST[@]} | Plugin: trading-desk@srivardhanjalan (globally installed)"
 
 # ─── Step 0a: Launch TradingView Desktop with CDP ────────────────────────────
 if pgrep -x "TradingView" > /dev/null 2>&1; then
@@ -101,7 +132,6 @@ for i in "${!WATCHLIST[@]}"; do
     START_TIME=$(date +%s)
 
     if claude -p \
-        --plugin-dir "$PLUGIN_DIR" \
         --permission-mode auto \
         --max-budget-usd "$MAX_BUDGET_PER_STOCK" \
         --no-session-persistence \
@@ -144,7 +174,6 @@ log "Generating daily summary..."
 RESULTS_STR=$(printf '%s\n' "${RESULTS[@]}")
 
 claude -p \
-    --plugin-dir "$PLUGIN_DIR" \
     --permission-mode auto \
     --max-budget-usd 2 \
     --model sonnet \
