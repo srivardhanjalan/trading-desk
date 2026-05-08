@@ -25,6 +25,32 @@ Each analysis step can only have one of these outcomes:
 
 ---
 
+## Forbidden Rationalizations (HARD BAN)
+
+The following phrases — and any equivalent reasoning — MUST NEVER appear as a justification for not calling a mandatory tool:
+
+| Forbidden phrase | Why it's banned |
+|------------------|-----------------|
+| "skipped — token budget" | Token cost is not a valid skip reason. Every mandatory tool's cost is already accepted by the pipeline design. |
+| "skipped — context size" / "context already large" | The pipeline writes phase outputs to `reports/` precisely so context can be compressed. Skipping the call defeats this. |
+| "skipped — pipeline degradation" | "Pipeline degradation" describes what happens to the OUTPUT when tools fail, not a mode where you preemptively don't call them. |
+| "data gaps (skipped — ...)" | Data gaps are caused by tools FAILING, not by tools NOT BEING CALLED. The gap label is reserved for actual failures. |
+| "skipped — likely low signal" / "skipped — probably empty" | You don't know it's low signal until you've called it. `EMPTY` is a valid outcome that documents this; "skipped" is not. |
+| "skipped to save time" / "skipped for brevity" | Wall-clock time is not a valid skip reason for tools the user has marked mandatory. |
+| "covered by another tool" (without explicit cross-reference rule) | Each mandatory tool is mandatory in its own right. If the pipeline intends fallback substitution, it says so explicitly. |
+
+**If you find yourself reaching for one of these phrases, STOP and call the tool instead.** The rationalization is the failure mode — not the missing data.
+
+**Self-check before writing the report:** scan your draft for the strings above. If any appear, every instance is a pipeline violation that must be fixed (by actually running the call) before the report is delivered.
+
+A genuine failure looks like this — and ONLY this:
+```
+[FAILED] {tool_name}: {actual error string returned by the tool}. Impact: {what score/metric is degraded}.
+```
+If the "error string" is your own reasoning (e.g. "didn't seem useful"), the step has not failed — it has not been attempted. That is a violation, not a failure.
+
+---
+
 ## Mandatory Failure Logging Format
 
 When a step fails, log it in the report as:

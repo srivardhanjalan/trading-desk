@@ -85,6 +85,9 @@ After computing all 10 metrics, cross-reference against Phase 11 earnings calend
 
 ### Step 1 — Multi-platform sentiment + news (23-26 calls, parallel)
 
+**EVERY call below MUST be attempted.** Reddit, Twitter/X, StockTwits, Glassdoor, Google Trends, dark pool, web traffic, short-interest, whisper estimates — all are mandatory. The only valid outcomes per call are: COMPLETED, OK (fallback), EMPTY, FAILED (with the actual tool error string), or N/A (with asset-type justification, e.g. crypto skips insider trades). **You MAY NOT skip a platform with reasoning like "data gaps", "pipeline degradation", "token budget", "context size", or "low signal" — those are forbidden rationalizations per `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md`.** If a tool was not actually called, it has not been resolved — go back and call it.
+
+
 - `mcp__plugin_trading-desk_tradingview-analysis__market_sentiment` with symbol=$ARGUMENTS, market="stocks" — Reddit sentiment across r/stocks, r/wsb, r/investing, r/options
 - `mcp__plugin_trading-desk_tradingview-analysis__multi_agent_analysis` with symbol=$ARGUMENTS, exchange from Phase 1, timeframe="1D" — 3-agent debate: Technical + Sentiment + Risk Manager
 - `mcp__plugin_trading-desk_tradingview-analysis__financial_news` with symbol=$ARGUMENTS, category="stocks", limit=10 — real-time RSS feeds from Reuters, CoinDesk, etc. Captures breaking news faster than FMP indexing.
@@ -136,14 +139,15 @@ After computing all 10 metrics, cross-reference against Phase 11 earnings calend
 - For each article, analyze: key facts, sentiment (positive/negative/neutral), impact magnitude (high/medium/low), time horizon
 - Apply source credibility tiers: Tier 1 (Reuters, Bloomberg, WSJ) = 1.0x weight, Tier 2 (CNBC, Yahoo Finance) = 0.8x, Tier 3 (blogs, unknown) = 0.5x
 
-**Compliance checklist (ALL required):**
-1. [ ] WebFetch called on at least 3 article URLs (increased from 2)
+**Compliance checklist (ALL 6 required — no threshold, no partial credit):**
+1. [ ] WebFetch called on at least 3 article URLs
 2. [ ] Per-article breakdown: key facts, sentiment, impact magnitude, time horizon
 3. [ ] Source credibility tier assigned to each article
 4. [ ] If WebFetch returns 403/paywall, note 'PAYWALLED — sentiment from headline only (lower confidence)'
 5. [ ] At least 1 Tier 1 source (Reuters, Bloomberg, WSJ) sought via WebSearch
 6. [ ] Analyst grade/price target news from `getStockGradeNews` and `getPriceTargetNews` cross-referenced with article sentiment
-If fewer than 4 of 6 items are completed, add 'NEWS NLP: INCOMPLETE' warning to output.
+
+**Per-item enforcement:** For each item NOT completed, log it as a discrete FAILED line with the actual reason: `[FAILED] News NLP item N: {tool/step that didn't run}: {real error string OR "not attempted"}`. "Not attempted" is itself a pipeline violation per `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md` — token budget / context size / "low signal" are NOT valid reasons. If <6 items pass, add 'NEWS NLP: INCOMPLETE — N/6 items, M items skipped without tool failure (POLICY VIOLATION)' to output and bump the data-gap penalty by an additional -0.5 per non-attempted item.
 
 **Why full-text matters:** Headlines are often clickbait. A "Stock drops 5%" headline might be planned dilution (bad) or profit-taking after +30% run (neutral). Only the article body reveals the actual signal.
 

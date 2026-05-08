@@ -119,6 +119,8 @@ Before displaying the compact card, perform the completion audit defined in `${C
 
 **If any mandatory step was silently skipped (no COMPLETED/FAILED/N/A log), go back and execute it before proceeding.**
 
+**Forbidden-rationalization scan (MANDATORY):** Before rendering the compact card, grep your draft report for the banned phrases listed in `${CLAUDE_PLUGIN_ROOT}/lib/no-skip-policy.md` "Forbidden Rationalizations" section: `token budget`, `pipeline degradation` (used as a skip reason — distinct from the legitimate completeness-degradation discussion), `data gaps (skipped`, `skipped to save`, `likely low signal`, `context already large`, `covered by another tool`. **Each match is a pipeline violation.** For every match: identify the specific tool that was not called, call it now, and replace the rationalization with the actual outcome (`OK`, `OK (fallback)`, `EMPTY`, `FAILED` with real error, or `N/A` with asset-type justification). Only after this scan returns clean may the compact card be rendered.
+
 Display the audit summary in the report footer:
 ```
 Pipeline: {PASS/VIOLATION} | Phases: {N}/4 complete | Overrides: {N}/8 evaluated | Data: {X}%
