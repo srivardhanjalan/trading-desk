@@ -10,6 +10,7 @@ node_modules/
 
 # Analysis reports (local state)
 reports/*.md
+!reports/PLAN.md
 reports/*.txt
 reports/logs/
 
