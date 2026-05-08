@@ -89,6 +89,7 @@ After computing all 10 metrics, cross-reference against Phase 11 earnings calend
 - `mcp__plugin_trading-desk_financial-modeling-prep__getStockNews` with symbol=$ARGUMENTS, limit=10 — headlines with URLs (URLs used in Step 2)
 - `WebSearch` query: "$ARGUMENTS stock twitter sentiment {current_year}" — Twitter/X sentiment (fastest-moving platform)
 - `WebSearch` query: "$ARGUMENTS site:stocktwits.com" — StockTwits sentiment (has built-in bullish/bearish tagging)
+- `WebSearch` query: "$ARGUMENTS stock analysis {current_year}" — broader analyst blog coverage, YouTube summaries, Substack/Seeking Alpha deep dives. Captures qualitative takes that don't show up in regular news indices. Tag findings as "blog/influencer" tier (lower credibility than Tier 2 news).
 - `WebSearch` query: "$ARGUMENTS short interest history trend {current_year}" — short interest % of float AND trend data. Extract SI% at multiple dates for 3-month trend direction (rising/falling/stable). High SI + approaching earnings = squeeze catalyst. SI > 10% AND rising = -1 Risk. SI > 20% + days to cover > 5 = "SQUEEZE POTENTIAL" flag.
 - `WebFetch`: "https://finviz.com/quote.ashx?t=$ARGUMENTS" — extract Short Float%, Short Ratio, Short Interest (if accessible). If WebFetch blocked (403): use WebSearch results only, note "SI TREND: WebSearch only (lower confidence)".
 - `WebSearch` query: "$ARGUMENTS earnings whisper estimate {current_year}" — whisper numbers (buy-side expectations). Often higher than published consensus. If actual beats whisper, reaction is more positive than just beating consensus.
@@ -105,7 +106,7 @@ After computing all 10 metrics, cross-reference against Phase 11 earnings calend
 - **10b5-1 verification (REQUIRED):** FMP does not return 10b5-1 plan status. After getting insider trades, run `WebSearch` query: `{SYMBOL} "{INSIDER_NAME}" 10b5-1 plan {year} SEC Form 4` for each insider with sales >$1M. The SEC Form 4 footnotes explicitly state whether sales were under a pre-arranged Rule 10b5-1 plan and the plan adoption date. Report as **confirmed 10b5-1** (with adoption date) or **discretionary sale** — never say "likely."
 - `mcp__plugin_trading-desk_financial-modeling-prep__getSenateTrades` with symbol=$ARGUMENTS — always called. Empty = "No Senate activity"
 - `mcp__plugin_trading-desk_financial-modeling-prep__getHouseTrades` with symbol=$ARGUMENTS — always called. Empty = "No House activity"
-- `mcp__plugin_trading-desk_financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=10 — official corporate press releases. Primary source for contract announcements, product launches, partnerships. Feeds into Extension Catalyst Exception check.
+- `mcp__plugin_trading-desk_financial-modeling-prep__getPressReleases` with symbol=$ARGUMENTS, limit=15 — official corporate press releases (15 entries to capture full quarter context, not just headlines). Primary source for contract announcements, product launches, partnerships, exec changes, legal matters. Feeds into Extension Catalyst Exception check + the Press Releases output section.
 - `mcp__plugin_trading-desk_financial-modeling-prep__getPriceTargetNews` with symbol=$ARGUMENTS, limit=10 — analyst price target changes with article links. Shows WHICH analysts changed targets, old vs new price, and the reasoning. Critical for detecting recent upgrades/downgrades that move the stock.
 - `mcp__plugin_trading-desk_financial-modeling-prep__getStockGradeNews` with symbol=$ARGUMENTS, limit=10 — analyst rating changes (upgrade/downgrade/initiation). Shows grading firm, previous vs new grade, action taken. Feeds directly into Analyst sentiment sub-score.
 - `mcp__plugin_trading-desk_financial-modeling-prep__getEarningsCalendar` with from={today}, to={today + 30 days} — returns ALL companies' earnings (no symbol filter). Must search response for $ARGUMENTS. Alternatively, use `getEarningsReports` from Phase 9 for per-symbol dates.
@@ -170,7 +171,13 @@ Empty = "No institutional data this quarter" (normal for micro-caps).
 **0-1 call (conditional):**
 - Call `mcp__plugin_trading-desk_financial-modeling-prep__getEarningsTranscript` with symbol=$ARGUMENTS, year={most recent earnings year}, quarter={most recent earnings quarter}
 - **Only fetch if:** earnings within 30 days (from Phase 11 calendar) OR analyzing most recent quarter. Skip otherwise to manage context size (transcripts are 50-100KB).
-- If fetched: analyze for tone (bullish/cautious/defensive), key themes, forward guidance language, risk flags, management confidence level.
+- If fetched, perform full NLP analysis on these dimensions:
+  - **Management tone:** confident / cautious / defensive. Count hedging language ("uncertain", "challenging", "headwinds", "softness", "transitory") vs confidence language ("strong", "accelerating", "exceeding", "robust", "record"). Net hedging-confidence ratio.
+  - **Forward guidance:** raised / maintained / lowered. Specific numbers cited (revenue, EPS, margin) or vague qualifiers? Compare to prior quarter's guidance.
+  - **Key themes:** top 3-5 topics management chose to emphasize. What did analysts push hardest on (questions about specific topics)?
+  - **Risk flags:** unusual exec departures mentioned, accounting language changes, litigation/regulatory mentions, restatement language.
+  - **Competitive positioning:** how management discussed competitors (named or implied). Tone of competitive commentary (defensive vs offensive). Mentions of pricing pressure, market-share trends.
+  - **Capital-allocation signals:** buyback intent, M&A appetite, capex changes, dividend commentary.
 
 ---
 
@@ -241,11 +248,30 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 - Recent upgrades: X | Downgrades: X
 - Notable: {specific events}
 
+### Analyst Blogs & YouTube (informational, no scoring weight)
+- Coverage: {1-3 line summary of qualitative takes from independent analysts/influencers}
+- Consensus: {bullish/bearish/mixed/none-found}
+- Notable voices: {names of analysts or channels with credible track records, or "none surfaced"}
+
 ### Multi-Agent Debate
 - Technical Agent: {verdict}
 - Sentiment Agent: {verdict}
 - Risk Manager: {verdict}
 - Consensus: {BUY/SELL/HOLD}
+
+## Press Releases (last 15)
+| Date | Headline | Category | Material? |
+|------|----------|----------|----------:|
+| {YYYY-MM-DD} | {headline} | {product/contract/exec/legal/guidance} | {yes/no} |
+| ... | | | |
+- Most significant: {1-2 sentence summary of biggest impact release}
+- Catalyst flag: {yes/no — does this trigger Extension Catalyst Exception?}
+
+## M&A Activity
+- Status: {active acquirer / takeover target / no activity}
+- Filings: {searchMergersAcquisitions results or "None in SEC filings"}
+- Rumors / web: {WebSearch findings — credible takeover speculation, activist filings, or "None"}
+- Implication: {growth-by-acquisition risk / potential premium / not applicable}
 
 ## Insider Activity
 | Date | Name | Role | Action | Shares | Price | Value |
@@ -269,9 +295,23 @@ Write all collected data to `reports/{SYMBOL}_sentiment.md`:
 - Holder Industry Concentration: {diversified or concentrated in X sector}
 - Fund Quality: {top-alpha accumulating / mixed / bottom-quintile dominated}
 
+### Fund-Level Flow (from getFilingExtractAnalyticsByHolder)
+- Top 3 buyers: {fund / shares / weight change}
+- Top 3 sellers: {fund / shares / weight change}
+- New positions initiated: {fund names with notable size}
+- Exits: {fund names that closed positions}
+- Largest weight change: {fund + delta}
+
 ## Earnings
 - Next earnings: {date or "Not within 30 days"}
-- Transcript analysis: {summary or "Skipped — not within window"}
+- Transcript analysis: {filled-out block below, or "Skipped — not within 30-day window and not most-recent quarter"}
+  - Tone: {confident / cautious / defensive} (hedging:confidence word ratio = {X}:{Y})
+  - Forward guidance: {raised / maintained / lowered} — {specific numbers or "vague"}
+  - Key themes: {3-5 bullets}
+  - Analyst focus: {what they pushed on}
+  - Risk flags: {bullets or "None notable"}
+  - Competitive positioning: {defensive / offensive / neutral} — {1-line summary}
+  - Capital allocation: {buybacks / M&A appetite / capex / dividends}
 
 ## Corporate Actions
 - Upcoming: {splits/dividends/mergers or "None within 30 days"}
