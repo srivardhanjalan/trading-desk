@@ -19,6 +19,51 @@ Do **not** prompt via `read -p` inside Bash — Claude Code shells out without a
 
 ## Steps
 
+### Step 0 — detect and resolve user-level MCP conflicts
+
+If `~/.claude/.mcp.json` exists and declares any of `financial-modeling-prep`, `alpaca`, `tradingview`, or `tradingview-analysis`, those duplicate the plugin's MCPs. Claude Code dedupes by URL/command and the user-level one wins, so the plugin's prefixed tools (`mcp__plugin_trading-desk_*`) won't register and commands fail with prefix-mismatch errors.
+
+Detect this and offer to back up the file:
+
+```bash
+USER_MCP="$HOME/.claude/.mcp.json"
+if [ -f "$USER_MCP" ]; then
+  CONFLICTS=$(python3 -c "
+import json
+try:
+    d = json.load(open('$USER_MCP'))
+    servers = set(d.get('mcpServers', {}).keys())
+    plugin_servers = {'financial-modeling-prep', 'alpaca', 'tradingview', 'tradingview-analysis'}
+    print(','.join(sorted(servers & plugin_servers)))
+except Exception:
+    pass
+")
+  if [ -n "$CONFLICTS" ]; then
+    echo "WARNING: ~/.claude/.mcp.json declares MCPs that duplicate the plugin: $CONFLICTS"
+    echo "Backing up to ~/.claude/.mcp.json.preplugin.bak so the plugin's prefixed versions take effect."
+    mv "$USER_MCP" "$USER_MCP.preplugin.bak"
+  fi
+fi
+```
+
+Do this BEFORE writing the new `.env` so any error here surfaces early. Also patch a known FSI hooks.json bug if present (empty array `[]` instead of `{}` causes hook-load errors — only fix if file is exactly `[]`):
+
+```bash
+python3 <<'PY'
+import json, os, glob
+for root in [os.path.expanduser("~/.claude/plugins/marketplaces/financial-services-plugins"),
+             os.path.expanduser("~/.claude/plugins/cache/financial-services-plugins")]:
+    for path in glob.glob(f"{root}/**/hooks.json", recursive=True):
+        try:
+            data = json.load(open(path))
+            if isinstance(data, list) and not data:
+                open(path, "w").write("{}\n")
+                print(f"patched FSI hooks.json: {path}")
+        except Exception:
+            pass
+PY
+```
+
 ### Step 1 — write `.env` outside the plugin
 
 ```bash
