@@ -723,7 +723,7 @@ Complete 16-phase detailed report with all data tables, charts, and reasoning.
 **Batch optimization** (if TradingView Desktop is running):
 - `TV: batch_run` (symbols=watchlist, action="screenshot") — screenshot all 16 charts in ONE call instead of 16 individual calls
 
-Default watchlist: ALMU, AMD, CRDO, FIX, ASX, KLTR, FLTCF, NVT, CDNS, AMPX, BBAI, LAW, SATS, GEV, BE, KGS
+Default watchlist: ALMU, AMD, AMPX, ASX, BBAI, BE, CDNS, CRDO, FIX, FLTCF, GEV, INFQ, KGS, KLTR, LAW, NOK, NOW, NVT, OTLK, PLTR, RBLX, SATS, VXRT
 
 Output: Ranked table sorted by quick composite score. Offer deep-dive on top picks.
 

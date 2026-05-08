@@ -7,7 +7,7 @@ Scan multiple stocks with condensed analysis and rank by composite score.
 - `/project:scan AAPL,MSFT,NVDA` — scan specific symbols
 - `/project:scan discover` — use FMP stockScreener to find NEW stocks, then analyze top 10
 
-**Default watchlist:** ALMU, AMD, CRDO, FIX, ASX, KLTR, FLTCF, NVT, CDNS, AMPX, BBAI, LAW, SATS, GEV, BE, KGS
+**Default watchlist:** ALMU, AMD, AMPX, ASX, BBAI, BE, CDNS, CRDO, FIX, FLTCF, GEV, INFQ, KGS, KLTR, LAW, NOK, NOW, NVT, OTLK, PLTR, RBLX, SATS, VXRT
 
 **Budget:** ~7 FMP calls per stock + 2 TV-Analysis = 9 calls/stock. 16 stocks = 115 FMP calls + 32 TV-Analysis calls.
 

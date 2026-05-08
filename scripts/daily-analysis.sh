@@ -17,7 +17,7 @@ set -euo pipefail
 TRADING_DESK="/Users/srivardhanjalan/workspace/trading-desk"
 LOG_DIR="$TRADING_DESK/reports/logs"
 
-WATCHLIST=(ALMU AMD CRDO FIX ASX KLTR FLTCF NVT CDNS AMPX BBAI LAW SATS GEV BE KGS)
+WATCHLIST=(ALMU AMD AMPX ASX BBAI BE CDNS CRDO FIX FLTCF GEV INFQ KGS KLTR LAW NOK NOW NVT OTLK PLTR RBLX SATS VXRT)
 DELAY_BETWEEN_STOCKS=5     # Seconds between analyses (breathing room)
 MAX_BUDGET_PER_STOCK=8     # USD budget cap per claude -p invocation
 
